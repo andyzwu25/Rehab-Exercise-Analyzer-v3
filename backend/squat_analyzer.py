@@ -3,7 +3,7 @@ import mediapipe as mp
 import numpy as np
 
 from collections import deque
-from mediapipe.python.solutions import pose as mp_pose
+mp_pose = mp.solutions.pose
 
 # --- HELPER: Angle Math ---
 def calculate_angle(a, b, c):
