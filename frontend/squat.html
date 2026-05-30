@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rehab Exercise Analyzer</title>
+    <style>
+        /* Clean, professional clinical styling */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f4f7f6; 
+            color: #2c3e50; 
+            line-height: 1.6;
+        }
+        
+        /* Navigation Bar */
+        .navbar { background-color: #0056b3; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .navbar h2 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+        .nav-links a { color: white; text-decoration: none; margin-left: 20px; font-weight: 500; }
+        .nav-links a:hover { opacity: 0.8; }
+
+        .container { 
+            max-width: 800px; 
+            margin: 40px auto; 
+            padding: 30px; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        }
+        h1 { color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; }
+        .upload-section { margin: 20px 0; padding: 20px; border: 2px dashed #b0c4de; border-radius: 8px; text-align: center; background-color: #f8fbff; }
+        .upload-btn { 
+            background-color: #0056b3; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 5px; 
+            font-size: 16px;
+            cursor: pointer; 
+            transition: background 0.3s;
+        }
+        .upload-btn:hover { background-color: #004494; }
+        
+        /* Hidden elements that appear during/after processing */
+        #loading { display: none; color: #d9534f; font-weight: bold; margin-top: 15px; text-align: center;}
+        #results { display: none; margin-top: 30px; }
+        
+        .report-card { 
+            background: #e9ecef; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+            border-left: 5px solid #0056b3;
+        }
+        .metric { font-size: 1.2em; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <h2>Kinetix Rehab</h2>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="#">Patient Records</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Rehab Exercise Analyzer</h1>
+        <p>Upload a video to analyze squat biomechanics, depth, and form.</p>
+
+        <div class="upload-section">
+            <form id="uploadForm">
+                <input type="file" id="videoInput" accept="video/mp4, video/mov" required style="margin-bottom: 15px;">
+                <br>
+                <button type="submit" class="upload-btn">Analyze Movement</button>
+            </form>
+            <div id="loading">Processing video through AI model... Please wait.</div>
+        </div>
+
+        <div id="results">
+            <h2>Analysis Complete</h2>
+            
+            <video id="outputVideo" width="100%" controls style="border-radius: 8px;"></video>
+            
+            <div class="report-card" id="reportText">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            // Prevent the page from refreshing when you click submit
+            event.preventDefault();
+
+            // Get the video file from the input
+            const fileInput = document.getElementById('videoInput');
+            const file = fileInput.files[0];
+
+            // Grab the UI elements
+            const loadingText = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            const outputVideo = document.getElementById('outputVideo');
+            const reportText = document.getElementById('reportText');
+
+            // Show loading, hide previous results
+            loadingText.style.display = 'block';
+            resultsDiv.style.display = 'none';
+
+            // Package the video to send to the Python server
+            const formData = new FormData();
+            formData.append('video', file);
+
+            try {
+                // IMPORTANT: This URL will point to your Python FastAPI server
+                const response = await fetch('http://localhost:8000/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Server failed to process video.");
+
+                // Parse the JSON report sent back by Python
+                const data = await response.json();
+
+                // 1. Update the video player with the new skeleton video
+                outputVideo.src = data.processed_video_url;
+
+                // 2. Format and display the Diagnostic Report
+                let reportHTML = `<h3>Diagnostic Report</h3>`;
+                reportHTML += `<p>Total Squats Detected: <span class="metric">${data.total_squats}</span></p>`;
+                
+                if (data.total_squats > 0) {
+                    reportHTML += `<p>Parallel Depth Score: <span class="metric">${data.depth_score}%</span></p>`;
+                    if (data.depth_score > 80) {
+                        reportHTML += `<p style="color: green;">✅ Excellent! Consistently hitting parallel depth.</p>`;
+                    } else {
+                        reportHTML += `<p style="color: red;">❌ Depth Warning: Squat lower on your next set.</p>`;
+                    }
+                } else {
+                    reportHTML += `<p>No active squatting motion detected.</p>`;
+                }
+
+                reportText.innerHTML = reportHTML;
+
+                // Hide loading, show results
+                loadingText.style.display = 'none';
+                resultsDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error("Error:", error);
+                loadingText.innerText = "An error occurred during analysis. Make sure the backend server is running.";
+            }
+        });
+    </script>
+
+</body>
+</html>

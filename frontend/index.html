@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetix | Rehab Exercise Platform</title>
+    <style>
+        /* Modern, clean CSS */
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8f9fa; color: #333; }
+        
+        /* Navigation Bar */
+        .navbar { background-color: #0056b3; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .navbar h2 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+        .nav-links a { color: white; text-decoration: none; margin-left: 20px; font-weight: 500; }
+        .nav-links a:hover { opacity: 0.8; }
+
+        /* Hero Section */
+        .hero { text-align: center; padding: 60px 20px; background: white; border-bottom: 1px solid #eaeaea; }
+        .hero h1 { font-size: 2.5em; color: #2c3e50; margin-bottom: 10px; }
+        .hero p { font-size: 1.2em; color: #666; max-width: 600px; margin: 0 auto; }
+
+        /* Exercise Grid */
+        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+        
+        /* Exercise Cards */
+        .card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: block; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .card-img { height: 160px; background-color: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .card-content { padding: 20px; }
+        .card-title { margin: 0 0 10px 0; color: #0056b3; font-size: 1.4em; }
+        .card-desc { margin: 0; color: #666; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <h2>Kinetix Rehab</h2>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="#">Patient Records</a>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>AI Biomechanics Analysis</h1>
+        <p>Select a movement below to run an automated kinematic assessment.</p>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+            <a href="squat.html" class="card">
+                <div class="card-img">🏋️</div>
+                <div class="card-content">
+                    <h3 class="card-title">Squat Depth & Form</h3>
+                    <p class="card-desc">Analyzes parallel depth, knee tracking, and hip alignment.</p>
+                </div>
+            </a>
+
+            <a href="#" class="card" style="opacity: 0.6; cursor: not-allowed;">
+                <div class="card-img">🚶</div>
+                <div class="card-content">
+                    <h3 class="card-title">Gait Analysis (Coming Soon)</h3>
+                    <p class="card-desc">Tracks stride length and stance symmetry.</p>
+                </div>
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

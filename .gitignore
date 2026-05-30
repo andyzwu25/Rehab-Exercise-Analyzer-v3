@@ -1,0 +1,12 @@
+# Ignore virtual environments
+.venv/
+env/
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore videos and temp files
+*.mp4
+*.mov
+temp_*
+output_videos/
