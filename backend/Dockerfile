@@ -1,8 +1,8 @@
 # Use an official, stable lightweight Python runtime
 FROM python:3.11-slim
 
-# Install the exact visual graphics libraries MediaPipe needs to run on a headless server
-RUN apt-get update && apt-get install -y \
+# Force a fresh cache clear for graphics libraries
+RUN apt-get update && apt-get clean && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
