@@ -12,7 +12,9 @@ WORKDIR /app
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y opencv-python opencv-contrib-python \
+    && pip install --no-cache-dir opencv-python-headless
 
 # Copy the rest of your backend code into the container
 COPY . .
