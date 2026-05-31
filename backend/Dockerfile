@@ -11,10 +11,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the requirements file and install dependencies
+# Copy the requirements file and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y opencv-python opencv-contrib-python \
-    && pip install --no-cache-dir opencv-python-headless
+    && pip install --no-cache-dir --force-reinstall opencv-python-headless
 
 # Copy the rest of your backend code into the container
 COPY . .
