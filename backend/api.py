@@ -39,7 +39,7 @@ async def analyze_video(video: UploadFile = File(...)):
     
     # C. RUN YOUR AI LOGIC (This is the bridge!)
     # This runs the video through MediaPipe and returns the real data
-    total_squats, depth_score = process_video_file(temp_input_path, output_filepath)
+    total_squats, depth_score = process_video_file(temp_input_path, raw_opencv_path)
     
     # NEW: Force Python to instantly wipe out memory caches before starting Ffmpeg
     gc.collect()
