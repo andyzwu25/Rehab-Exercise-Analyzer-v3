@@ -46,7 +46,7 @@ async def analyze_video(video: UploadFile = File(...)):
 
     # NEW STEP: Convert the raw video to a Web-Friendly H.264 format using FFmpeg
     if os.path.exists(raw_opencv_path):
-        os.system(f"ffmpeg -y -threads 1 -i {raw_opencv_path} -vcodec libx264 -f mp4 {final_web_path}")
+        os.system(f"ffmpeg -y -threads 1 -i {raw_opencv_path} -c:v libx264 -pix_fmt yuv420p {final_web_path}")
         os.remove(raw_opencv_path)
     # D. Clean up the temporary input file
     if os.path.exists(temp_input_path):
