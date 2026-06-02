@@ -19,8 +19,8 @@ app.add_middleware(
 )
 
 # 2. Tell the server to host a folder called "output_videos" so the frontend can display them
-os.makedirs("output_videos", exist_ok=True)
-app.mount("/outputs", StaticFiles(directory="output_videos"), name="outputs")
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 3. The exact endpoint your JavaScript is trying to fetch
 @app.post("/analyze")
@@ -33,7 +33,7 @@ async def analyze_video(video: UploadFile = File(...)):
         
     # B. Define where the annotated video will be saved
     output_filename = f"processed_{video.filename}"
-    output_filepath = f"output_videos/{output_filename}"
+    output_filepath = f"static/{output_filename}"
     
     # C. RUN YOUR AI LOGIC (This is the bridge!)
     # This runs the video through MediaPipe and returns the real data
@@ -47,5 +47,5 @@ async def analyze_video(video: UploadFile = File(...)):
     return {
         "total_squats": total_squats,
         "depth_score": depth_score,
-        "processed_video_url": f"http://localhost:8000/outputs/{output_filename}"
+        "processed_video_url": f"https://rehab-exercise-analyzer-v3.onrender.com/static/{output_filename}"
     }
