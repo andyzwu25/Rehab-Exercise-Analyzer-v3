@@ -34,7 +34,7 @@ async def analyze_video(video: UploadFile = File(...)):
         
     # B. Define where the annotated video will be saved
     output_filename = f"processed_{video.filename}"
-    raw_opencv_path = f"static/raw_{output_filename}"
+    raw_opencv_path = f"static/raw_{os.path.splitext(output_filename)[0]}.avi"
     final_web_path = f"static/{output_filename}"
     
     # C. RUN YOUR AI LOGIC (This is the bridge!)

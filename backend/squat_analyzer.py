@@ -38,7 +38,7 @@ def process_video_file(input_video_path, output_video_path):
     fps = int(cap.get(cv2.CAP_PROP_FPS)) if cap.get(cv2.CAP_PROP_FPS) > 0 else 30
 
     # Define the video writer to save the file as an MP4
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
 
     pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
