@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import shutil
 import os
+import gc 
 
 # Import your squat analyzer logic (we will tweak your main file in Step 3 to allow this)
 from squat_analyzer import process_video_file 
@@ -40,9 +41,12 @@ async def analyze_video(video: UploadFile = File(...)):
     # This runs the video through MediaPipe and returns the real data
     total_squats, depth_score = process_video_file(temp_input_path, output_filepath)
     
+    # NEW: Force Python to instantly wipe out memory caches before starting Ffmpeg
+    gc.collect()
+
     # NEW STEP: Convert the raw video to a Web-Friendly H.264 format using FFmpeg
     if os.path.exists(raw_opencv_path):
-        os.system(f"ffmpeg -y -i {raw_opencv_path} -vcodec libx264 -f mp4 {final_web_path}")
+        os.system(f"ffmpeg -y -threads 1 -i {raw_opencv_path} -vcodec libx264 -f mp4 {final_web_path}")
         os.remove(raw_opencv_path)
     # D. Clean up the temporary input file
     if os.path.exists(temp_input_path):
