@@ -33,12 +33,17 @@ async def analyze_video(video: UploadFile = File(...)):
         
     # B. Define where the annotated video will be saved
     output_filename = f"processed_{video.filename}"
-    output_filepath = f"static/{output_filename}"
+    raw_opencv_path = f"static/raw_{output_filename}"
+    final_web_path = f"static/{output_filename}"
     
     # C. RUN YOUR AI LOGIC (This is the bridge!)
     # This runs the video through MediaPipe and returns the real data
     total_squats, depth_score = process_video_file(temp_input_path, output_filepath)
     
+    # NEW STEP: Convert the raw video to a Web-Friendly H.264 format using FFmpeg
+    if os.path.exists(raw_opencv_path):
+        os.system(f"ffmpeg -y -i {raw_opencv_path} -vcodec libx264 -f mp4 {final_web_path}")
+        os.remove(raw_opencv_path)
     # D. Clean up the temporary input file
     if os.path.exists(temp_input_path):
         os.remove(temp_input_path)
