@@ -42,7 +42,56 @@
         .upload-btn:hover { background-color: #004494; }
         
         /* Hidden elements that appear during/after processing */
-        #loading { display: none; color: #d9534f; font-weight: bold; margin-top: 15px; text-align: center;}
+        /* --- NEW LOADER STYLES --- */
+        #loading { 
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            background-color: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+
+        /* The spinning circle */
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3; /* Light grey track */
+            border-top: 4px solid #0056b3; /* Kinetix Blue leading edge */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        /* The spinning animation math */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* The pulsing text effect */
+        .loading-text {
+            color: #0056b3;
+            font-size: 1.2em;
+            font-weight: 600;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading-subtext {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 8px;
+        }
+
         #results { display: none; margin-top: 30px; }
         
         .report-card { 
@@ -75,7 +124,11 @@
                 <br>
                 <button type="submit" class="upload-btn">Analyze Movement</button>
             </form>
-            <div id="loading">Processing video through AI model... Please wait.</div>
+            <div id="loading">
+                <div class="spinner"></div>
+                <div class="loading-text">Analyzing Biomechanics...</div>
+                <div class="loading-subtext">Calculating joint angles and depth metrics. This usually takes 5-10 seconds.</div>
+            </div>
         </div>
 
         <div id="results">
@@ -144,8 +197,8 @@
                 reportText.innerHTML = reportHTML;
 
                 // Hide loading, show results
-                loadingText.style.display = 'none';
-                resultsDiv.style.display = 'block';
+                loadingText.style.display = 'flex';
+                resultsDiv.style.display = 'none';
 
             } catch (error) {
                 console.error("Error:", error);
