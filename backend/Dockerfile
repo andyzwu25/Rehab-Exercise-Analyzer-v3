@@ -6,7 +6,6 @@ RUN apt-get update && apt-get clean && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     ffmpeg \
-    psutil \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory inside the container
