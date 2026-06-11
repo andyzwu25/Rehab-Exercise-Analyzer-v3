@@ -157,7 +157,7 @@
             const reportText = document.getElementById('reportText');
 
             // Show loading, hide previous results
-            loadingText.style.display = 'block';
+            loadingText.style.display = 'flex';
             resultsDiv.style.display = 'none';
 
             // Package the video to send to the Python server
@@ -197,8 +197,8 @@
                 reportText.innerHTML = reportHTML;
 
                 // Hide loading, show results
-                loadingText.style.display = 'flex';
-                resultsDiv.style.display = 'none';
+                loadingText.style.display = 'none';
+                resultsDiv.style.display = 'grid';
 
             } catch (error) {
                 console.error("Error:", error);
