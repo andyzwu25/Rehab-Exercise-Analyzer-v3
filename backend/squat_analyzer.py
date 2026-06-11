@@ -108,6 +108,10 @@ def process_video_file(input_video_path, output_video_path):
     cap.release()
     out.release()
 
+    pose.close()
+
+    cv2.destroyAllWindows()
+    
     # Calculate final scores to return to api.py
     depth_score = int((good_depth_squats / total_squats) * 100) if total_squats > 0 else 0
     return total_squats, depth_score
