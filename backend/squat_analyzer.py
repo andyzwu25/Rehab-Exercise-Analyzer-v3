@@ -5,6 +5,11 @@ import numpy as np
 from collections import deque
 mp_pose = mp.solutions.pose
 
+# --- GLOBAL INITIALIZATION ---
+# Initialize the model once the server boots up.
+# This prevents it from creating fresh C++ memory allocations on every upload.
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
 # --- HELPER: Angle Math ---
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
@@ -40,8 +45,6 @@ def process_video_file(input_video_path, output_video_path):
     # Define the video writer to save the file as an MP4
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
-
-    pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
     total_squats = 0
     good_depth_squats = 0
@@ -107,8 +110,6 @@ def process_video_file(input_video_path, output_video_path):
 
     cap.release()
     out.release()
-
-    pose.close()
 
     cv2.destroyAllWindows()
     
