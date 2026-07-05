@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kinetix | Rehab Exercise Platform</title>
+    <title>Rehab Exercise Platform</title>
     <style>
        /* Modern Design Tokens & Base Styles */
         body { 
@@ -263,8 +263,18 @@
     </style>
 </head>
 <body>
+
+    <!-- 1. ADDED THE MISSING NAVBAR -->
+    <nav class="navbar">
+        <h2>Rehab Exercise Analyzer</h2>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="#">Patient Records</a>
+        </div>
+    </nav>
+
     <div class="container">
-        <h1>Rehab Exercise Analyzer</h1>
+        <h1>Squat Exercise Analyzer</h1>
         <p class="subtitle">Upload a video to analyze squat biomechanics, depth, and form.</p>
 
         <div class="upload-section">
@@ -298,5 +308,72 @@
 
         </div>
     </div>
+
+    <!-- 2. ADDED THE MISSING JAVASCRIPT -->
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const fileInput = document.getElementById('videoInput');
+            const file = fileInput.files[0];
+
+            const loadingText = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            const outputVideo = document.getElementById('outputVideo');
+            const reportText = document.getElementById('reportText');
+
+            loadingText.style.display = 'flex';
+            resultsDiv.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            try {
+                const response = await fetch('https://rehab-exercise-analyzer-v3.onrender.com/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Server failed to process video.");
+
+                const data = await response.json();
+
+                outputVideo.src = data.processed_video_url;
+
+                let reportHTML = `
+                    <div class="metric-box">
+                        <span class="metric-label">Total Squats Detected:</span>
+                        <span class="metric-value">${data.total_squats}</span>
+                    </div>
+                `;
+
+                if (data.total_squats > 0) {
+                    reportHTML += `
+                        <div class="metric-box">
+                            <span class="metric-label">Parallel Depth Score:</span>
+                            <span class="metric-value">${data.depth_score}%</span>
+                        </div>
+                    `;
+                    if (data.depth_score > 80) {
+                        reportHTML += `<div class="feedback-message feedback-success">✅ Excellent! Consistently hitting parallel depth.</div>`;
+                    } else {
+                        reportHTML += `<div class="feedback-message feedback-warning">❌ Depth Warning: Squat lower on your next set.</div>`;
+                    }
+                } else {
+                    reportHTML += `<div class="feedback-message" style="background:#f1f5f9; color:#475569;">No active squatting motion detected.</div>`;
+                }
+
+                reportText.innerHTML = reportHTML;
+
+                loadingText.style.display = 'none';
+                // Switch the visibility toggle to utilize grid layout framework
+                resultsDiv.style.display = 'grid';
+
+            } catch (error) {
+                console.error("Error:", error);
+                loadingText.innerText = "An error occurred during analysis. Make sure the backend server is running.";
+            }
+        });
+    </script>
 </body>
 </html>
