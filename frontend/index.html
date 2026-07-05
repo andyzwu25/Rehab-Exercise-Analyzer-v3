@@ -5,67 +5,298 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kinetix | Rehab Exercise Platform</title>
     <style>
-        /* Modern, clean CSS */
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8f9fa; color: #333; }
+       /* Modern Design Tokens & Base Styles */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+            color: #1e293b; 
+            line-height: 1.6;
+            margin: 0;
+            padding-bottom: 60px;
+            min-height: 100vh;
+        }
         
-        /* Navigation Bar */
-        .navbar { background-color: #0056b3; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .navbar h2 { margin: 0; font-size: 24px; letter-spacing: 1px; }
-        .nav-links a { color: white; text-decoration: none; margin-left: 20px; font-weight: 500; }
-        .nav-links a:hover { opacity: 0.8; }
+        /* Premium Floating Navigation Bar */
+        .navbar { 
+            background: rgba(15, 23, 42, 0.95); 
+            backdrop-filter: blur(8px);
+            padding: 16px 40px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            color: white; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+        }
+        .navbar h2 { 
+            margin: 0; 
+            font-size: 22px; 
+            font-weight: 700;
+            letter-spacing: -0.5px; 
+            background: linear-gradient(45deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-links a { 
+            color: #94a3b8; 
+            text-decoration: none; 
+            margin-left: 24px; 
+            font-weight: 500; 
+            font-size: 15px;
+            transition: color 0.2s ease;
+        }
+        .nav-links a:hover { 
+            color: #f8fafc; 
+        }
 
-        /* Hero Section */
-        .hero { text-align: center; padding: 60px 20px; background: white; border-bottom: 1px solid #eaeaea; }
-        .hero h1 { font-size: 2.5em; color: #2c3e50; margin-bottom: 10px; }
-        .hero p { font-size: 1.2em; color: #666; max-width: 600px; margin: 0 auto; }
+        /* Main Workspace Container */
+        .container { 
+            max-width: 1100px; 
+            margin: 40px auto; 
+            padding: 0 20px;
+        }
 
-        /* Exercise Grid */
-        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+        /* Typography & Header styling */
+        h1 { 
+            color: #0f172a; 
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.75px;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-top: 0;
+            margin-bottom: 32px;
+        }
+
+        /* Interactive Upload Zone */
+        .upload-section { 
+            background: #ffffff; 
+            padding: 40px; 
+            border: 2px dashed #cbd5e1; 
+            border-radius: 16px; 
+            text-align: center; 
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .upload-section:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+        }
         
-        /* Exercise Cards */
-        .card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: block; }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
-        .card-img { height: 160px; background-color: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 40px; }
-        .card-content { padding: 20px; }
-        .card-title { margin: 0 0 10px 0; color: #0056b3; font-size: 1.4em; }
-        .card-desc { margin: 0; color: #666; font-size: 0.95em; }
+        /* Modern Action Button */
+        .upload-btn { 
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); 
+            color: white; 
+            padding: 14px 28px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer; 
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            transition: all 0.2s ease;
+        }
+        .upload-btn:hover { 
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+        }
+        .upload-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* Custom File Input Styling */
+        input[type="file"] {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        input[type="file"]::-webkit-file-upload-button {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: #475569;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 12px;
+            transition: background 0.2s;
+        }
+        input[type="file"]::-webkit-file-upload-button:hover {
+            background: #e2e8f0;
+        }
+        
+        /* Center-Aligned Flex Loader Layout */
+        #loading { 
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            background: #ffffff;
+            border-radius: 16px;
+            margin-top: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #f1f5f9; 
+            border-top: 4px solid #2563eb; 
+            border-radius: 50%;
+            animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #1e293b;
+            font-size: 1.25em;
+            font-weight: 700;
+            letter-spacing: -0.25px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .loading-subtext {
+            color: #64748b;
+            font-size: 0.95em;
+            margin-top: 8px;
+        }
+
+        /* Two-Column Desktop Grid Arrangement */
+        .analysis-workspace {
+            margin-top: 32px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* High-contrast Workspace Cards */
+        .workspace-column {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
+        .workspace-column h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #0f172a;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 12px;
+        }
+
+        video {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            background: #0f172a;
+        }
+
+        /* Clinical Diagnostics Feedback Elements */
+        .metric-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .metric-label {
+            font-weight: 600;
+            color: #475569;
+        }
+        .metric-value { 
+            font-size: 1.4em; 
+            font-weight: 800; 
+            color: #2563eb;
+        }
+        
+        .feedback-message {
+            border-radius: 12px;
+            padding: 16px;
+            font-weight: 600;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .feedback-success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .feedback-warning {
+            background: #fff1f2;
+            color: #991b1b;
+            border: 1px solid #ffe4e6;
+        }
+
+        /* Desktop View Initialization Trigger */
+        @media (min-width: 768px) {
+            .analysis-workspace {
+                display: grid;
+                grid-template-columns: 1.3fr 0.7fr; 
+                gap: 32px;
+                align-items: start; 
+            }
+        }
     </style>
 </head>
 <body>
-
-    <nav class="navbar">
-        <h2>Rehab Exercise Analyzer</h2>
-        <div class="nav-links">
-            <a href="index.html">Dashboard</a>
-            <a href="#">Patient Records</a>
-        </div>
-    </nav>
-
-    <div class="hero">
-        <h1>AI Biomechanics Analysis</h1>
-        <p>Select a movement below to run an automated kinematic assessment.</p>
-    </div>
-
     <div class="container">
-        <div class="grid">
-            <a href="squat.html" class="card">
-                <div class="card-img">🏋️</div>
-                <div class="card-content">
-                    <h3 class="card-title">Squat Depth & Form</h3>
-                    <p class="card-desc">Analyzes parallel depth, knee tracking, and hip alignment.</p>
-                </div>
-            </a>
+        <h1>Rehab Exercise Analyzer</h1>
+        <p class="subtitle">Upload a video to analyze squat biomechanics, depth, and form.</p>
 
-            <a href="#" class="card" style="opacity: 0.6; cursor: not-allowed;">
-                <div class="card-img">🚶</div>
-                <div class="card-content">
-                    <h3 class="card-title">Gait Analysis (Coming Soon)</h3>
-                    <p class="card-desc">Tracks stride length and stance symmetry.</p>
-                </div>
-            </a>
+        <div class="upload-section">
+            <form id="uploadForm">
+                <input type="file" id="videoInput" accept="video/mp4, video/mov" required>
+                <br>
+                <button type="submit" class="upload-btn">Analyze Movement</button>
+            </form>
+        </div>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing Biomechanics...</div>
+            <div class="loading-subtext">Calculating joint angles and depth metrics. This usually takes 5-10 seconds.</div>
+        </div>
+
+        <!-- TWO-COLUMN RESPONSIVE WORKSPACE -->
+        <div class="analysis-workspace" id="results" style="display: none;">
+            
+            <!-- LEFT COLUMN: VIDEO BOX -->
+            <div class="workspace-column video-column">
+                <h3>Movement Playback</h3>
+                <video id="outputVideo" width="100%" controls></video>
+            </div>
+            
+            <!-- RIGHT COLUMN: REPORT BOX -->
+            <div class="workspace-column report-column">
+                <h3>Diagnostic Report</h3>
+                <div id="reportText"></div>
+            </div>
+
         </div>
     </div>
-
 </body>
 </html>

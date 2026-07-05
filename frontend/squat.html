@@ -180,23 +180,33 @@
                 outputVideo.src = data.processed_video_url;
 
                 // 2. Format and display the Diagnostic Report
-                let reportHTML = `<h3>Diagnostic Report</h3>`;
-                reportHTML += `<p>Total Squats Detected: <span class="metric">${data.total_squats}</span></p>`;
-                
+                // Replace the block where you format your reportHTML with this:
+                let reportHTML = `
+                    <div class="metric-box">
+                        <span class="metric-label">Total Squats Detected:</span>
+                        <span class="metric-value">${data.total_squats}</span>
+                    </div>
+                `;
+
                 if (data.total_squats > 0) {
-                    reportHTML += `<p>Parallel Depth Score: <span class="metric">${data.depth_score}%</span></p>`;
+                    reportHTML += `
+                        <div class="metric-box">
+                            <span class="metric-label">Parallel Depth Score:</span>
+                            <span class="metric-value">${data.depth_score}%</span>
+                        </div>
+                    `;
                     if (data.depth_score > 80) {
-                        reportHTML += `<p style="color: green;">✅ Excellent! Consistently hitting parallel depth.</p>`;
+                        reportHTML += `<div class="feedback-message feedback-success">✅ Excellent! Consistently hitting parallel depth.</div>`;
                     } else {
-                        reportHTML += `<p style="color: red;">❌ Depth Warning: Squat lower on your next set.</p>`;
+                        reportHTML += `<div class="feedback-message feedback-warning">❌ Depth Warning: Squat lower on your next set.</div>`;
                     }
                 } else {
-                    reportHTML += `<p>No active squatting motion detected.</p>`;
+                    reportHTML += `<div class="feedback-message" style="background:#f1f5f9; color:#475569;">No active squatting motion detected.</div>`;
                 }
 
                 reportText.innerHTML = reportHTML;
 
-                // Hide loading, show results
+                // Switch the visibility toggle to utilize grid layout framework
                 loadingText.style.display = 'none';
                 resultsDiv.style.display = 'grid';
 
