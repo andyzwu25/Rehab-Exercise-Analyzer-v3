@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rehab Exercise Platform</title>
+    
+    <!-- 1. ADDED MEDIAPIPE CDN LIBRARIES -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
     <style>
        /* Modern Design Tokens & Base Styles */
         body { 
@@ -204,10 +211,13 @@
             padding-bottom: 12px;
         }
 
-        video {
+        /* 2. ADDED CANVAS STYLING */
+        canvas {
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             background: #0f172a;
+            width: 100%;
+            max-width: 100%;
         }
 
         /* Clinical Diagnostics Feedback Elements */
@@ -251,7 +261,6 @@
             border: 1px solid #ffe4e6;
         }
 
-        /* Desktop View Initialization Trigger */
         @media (min-width: 768px) {
             .analysis-workspace {
                 display: grid;
@@ -264,7 +273,6 @@
 </head>
 <body>
 
-    <!-- 1. ADDED THE MISSING NAVBAR -->
     <nav class="navbar">
         <h2>Rehab Exercise Analyzer</h2>
         <div class="nav-links">
@@ -287,93 +295,141 @@
 
         <div id="loading">
             <div class="spinner"></div>
-            <div class="loading-text">Analyzing Biomechanics...</div>
-            <div class="loading-subtext">Calculating joint angles and depth metrics. This usually takes 5-10 seconds.</div>
+            <div class="loading-text">Initializing AI Model...</div>
+            <div class="loading-subtext">Loading MediaPipe directly into your browser.</div>
         </div>
 
-        <!-- TWO-COLUMN RESPONSIVE WORKSPACE -->
         <div class="analysis-workspace" id="results" style="display: none;">
             
-            <!-- LEFT COLUMN: VIDEO BOX -->
+            <!-- 3. REPLACED <video> WITH A HIDDEN VIDEO AND VISIBLE CANVAS -->
             <div class="workspace-column video-column">
                 <h3>Movement Playback</h3>
-                <video id="outputVideo" width="100%" controls></video>
+                <!-- The raw video plays invisibly in the background -->
+                <video id="inputVideo" style="display: none;" playsinline></video>
+                <!-- The canvas is where we draw the video + the skeleton overlays -->
+                <canvas id="outputCanvas" width="640" height="480"></canvas>
             </div>
             
-            <!-- RIGHT COLUMN: REPORT BOX -->
             <div class="workspace-column report-column">
                 <h3>Diagnostic Report</h3>
-                <div id="reportText"></div>
+                <div id="reportText">
+                    <!-- Live metrics will inject here -->
+                    <div class="metric-box">
+                        <span class="metric-label">Current Reps:</span>
+                        <span class="metric-value" id="repCount">0</span>
+                    </div>
+                </div>
             </div>
 
         </div>
     </div>
 
-    <!-- 2. ADDED THE MISSING JAVASCRIPT -->
     <script>
+        // --- 1. SETUP VARIABLES & GEOMETRY MATH ---
+        const videoElement = document.getElementById('inputVideo');
+        const canvasElement = document.getElementById('outputCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const repCountDisplay = document.getElementById('repCount');
+
+        let reps = 0;
+        let state = "up"; // The rep-counting state machine from your Python file
+
+        // Translation of your Python np.arctan2 math
+        function calculateAngle(a, b, c) {
+            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+            let angle = Math.abs((radians * 180.0) / Math.PI);
+            if (angle > 180.0) {
+                angle = 360.0 - angle;
+            }
+            return angle;
+        }
+
+        // --- 2. MEDIAPIPE INITIALIZATION ---
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        // --- 3. THE FRAME RENDERING LOOP (Replaces OpenCV) ---
+        pose.onResults((results) => {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Draw the current video frame onto the canvas
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.poseLandmarks) {
+                // Draw the skeleton
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#3b82f6', lineWidth: 2, radius: 3});
+
+                // Extract landmarks (Indexes: 24=Right Hip, 26=Right Knee, 28=Right Ankle)
+                const hip = results.poseLandmarks[24];
+                const knee = results.poseLandmarks[26];
+                const ankle = results.poseLandmarks[28];
+
+                if (hip && knee && ankle) {
+                    const angle = calculateAngle(hip, knee, ankle);
+                    
+                    // Basic Python State Machine Port
+                    if (angle > 160) {
+                        state = "up";
+                    }
+                    if (angle < 110 && state === "up") {
+                        state = "down";
+                        reps += 1;
+                        repCountDisplay.innerText = reps;
+                    }
+
+                    // Render angle text dynamically on the canvas near the knee
+                    canvasCtx.font = "24px Arial";
+                    canvasCtx.fillStyle = "white";
+                    canvasCtx.fillText(Math.round(angle) + "°", knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
+                }
+            }
+            canvasCtx.restore();
+        });
+
+        // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
         document.getElementById('uploadForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
             const fileInput = document.getElementById('videoInput');
             const file = fileInput.files[0];
 
-            const loadingText = document.getElementById('loading');
-            const resultsDiv = document.getElementById('results');
-            const outputVideo = document.getElementById('outputVideo');
-            const reportText = document.getElementById('reportText');
+            if (!file) return;
 
-            loadingText.style.display = 'flex';
-            resultsDiv.style.display = 'none';
+            // UI toggles
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('results').style.display = 'grid';
+            reps = 0; // Reset reps on new video
+            repCountDisplay.innerText = reps;
 
-            const formData = new FormData();
-            formData.append('video', file);
-
-            try {
-                const response = await fetch('https://rehab-exercise-analyzer-v3.onrender.com/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error("Server failed to process video.");
-
-                const data = await response.json();
-
-                outputVideo.src = data.processed_video_url;
-
-                let reportHTML = `
-                    <div class="metric-box">
-                        <span class="metric-label">Total Squats Detected:</span>
-                        <span class="metric-value">${data.total_squats}</span>
-                    </div>
-                `;
-
-                if (data.total_squats > 0) {
-                    reportHTML += `
-                        <div class="metric-box">
-                            <span class="metric-label">Parallel Depth Score:</span>
-                            <span class="metric-value">${data.depth_score}%</span>
-                        </div>
-                    `;
-                    if (data.depth_score > 80) {
-                        reportHTML += `<div class="feedback-message feedback-success">✅ Excellent! Consistently hitting parallel depth.</div>`;
-                    } else {
-                        reportHTML += `<div class="feedback-message feedback-warning">❌ Depth Warning: Squat lower on your next set.</div>`;
-                    }
-                } else {
-                    reportHTML += `<div class="feedback-message" style="background:#f1f5f9; color:#475569;">No active squatting motion detected.</div>`;
-                }
-
-                reportText.innerHTML = reportHTML;
-
-                loadingText.style.display = 'none';
-                // Switch the visibility toggle to utilize grid layout framework
-                resultsDiv.style.display = 'grid';
-
-            } catch (error) {
-                console.error("Error:", error);
-                loadingText.innerText = "An error occurred during analysis. Make sure the backend server is running.";
-            }
+            // Load local file into the hidden video element
+            const videoURL = URL.createObjectURL(file);
+            videoElement.src = videoURL;
+            videoElement.muted = true; // Required for auto-processing in some browsers
+            
+            videoElement.onloadeddata = () => {
+                videoElement.play();
+                processVideo();
+            };
         });
+
+        // Continuously send frames to MediaPipe while the video plays
+        async function processVideo() {
+            if (!videoElement.paused && !videoElement.ended) {
+                await pose.send({image: videoElement});
+                requestAnimationFrame(processVideo);
+            }
+        }
     </script>
 </body>
 </html>
