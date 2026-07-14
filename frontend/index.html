@@ -407,9 +407,10 @@
             if (!file) return;
 
             // UI toggles
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('results').style.display = 'grid';
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('results').style.display = 'none';
             reps = 0; // Reset reps on new video
+            state = "up";
             repCountDisplay.innerText = reps;
 
             // Load local file into the hidden video element
@@ -417,7 +418,22 @@
             videoElement.src = videoURL;
             videoElement.muted = true; // Required for auto-processing in some browsers
             
-            videoElement.onloadeddata = () => {
+            // Match the canvas drawing buffer to the video's true dimensions
+            videoElement.onloadedmetadata = () => {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+            };
+
+            videoElement.onloadeddata = async () => {
+                // Process one frame while still paused. This both warms up the
+                // MediaPipe model and paints the first real frame to the canvas.
+                await pose.send({ image: videoElement });
+
+                // First frame is ready - hide the spinner, reveal the canvas.
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'grid';
+
+                // Only now that a frame is visible do we start the clock.
                 videoElement.play();
                 processVideo();
             };
