@@ -213,11 +213,12 @@
 
         /* 2. ADDED CANVAS STYLING */
         canvas {
+            display: block;          /* kills the inline-baseline gap too */
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             background: #0f172a;
             width: 100%;
-            max-width: 100%;
+            height: auto;            /* <-- scale by the attribute ratio, not a fixed 480px */
         }
 
         /* Clinical Diagnostics Feedback Elements */
@@ -333,7 +334,15 @@
 
         let reps = 0;
         let state = "up"; // The rep-counting state machine from your Python file
+        let isCounting = false;
+        let runId = 0;
+        
+        const frameRuns = [];   // FIFO: which run each queued frame belongs to
 
+        async function sendFrame(myRun) {
+            frameRuns.push(myRun);
+            await pose.send({ image: videoElement });
+        }
         // Translation of your Python np.arctan2 math
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -359,6 +368,15 @@
 
         // --- 3. THE FRAME RENDERING LOOP (Replaces OpenCV) ---
         pose.onResults((results) => {
+            const frameRun = frameRuns.shift();
+            // Stale frame from a superseded video: its pixels and landmarks belong to
+            // the old person and the old dimensions. Never paint it.
+            if (frameRun !== runId) return;
+
+            // Belt-and-braces: never stretch a frame that doesn't match the bitmap.
+            if (results.image.width  !== canvasElement.width ||
+                results.image.height !== canvasElement.height) return;
+            
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             
@@ -379,13 +397,15 @@
                     const angle = calculateAngle(hip, knee, ankle);
                     
                     // Basic Python State Machine Port
-                    if (angle > 160) {
+                    if (isCounting) {
+                        if (angle > 160) {
                         state = "up";
-                    }
-                    if (angle < 110 && state === "up") {
-                        state = "down";
-                        reps += 1;
-                        repCountDisplay.innerText = reps;
+                        }
+                        if (angle < 110 && state === "up") {
+                            state = "down";
+                            reps += 1;
+                            repCountDisplay.innerText = reps;
+                        }
                     }
 
                     // Render angle text dynamically on the canvas near the knee
@@ -403,47 +423,66 @@
 
             const fileInput = document.getElementById('videoInput');
             const file = fileInput.files[0];
-
             if (!file) return;
 
-            // UI toggles
-            document.getElementById('loading').style.display = 'flex';
-            document.getElementById('results').style.display = 'none';
-            reps = 0; // Reset reps on new video
+            // New run: invalidate any loop still running from a previous video
+            const myRun = ++runId;
+
+            // Reset all per-video state
+            reps = 0;
             state = "up";
+            isCounting = false;          // stay disarmed through the transition
             repCountDisplay.innerText = reps;
 
-            // Load local file into the hidden video element
+            // Blank the canvas and drop the old blob before anything can repaint.
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            if (videoElement.src) URL.revokeObjectURL(videoElement.src);
+
+            // Keep the canvas hidden behind the spinner during the switch,
+            // so the previous video's last frame never flashes.
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('results').style.display = 'none';
+
             const videoURL = URL.createObjectURL(file);
             videoElement.src = videoURL;
-            videoElement.muted = true; // Required for auto-processing in some browsers
-            
-            // Match the canvas drawing buffer to the video's true dimensions
+            videoElement.muted = true;
+
             videoElement.onloadedmetadata = () => {
                 canvasElement.width = videoElement.videoWidth;
                 canvasElement.height = videoElement.videoHeight;
             };
 
             videoElement.onloadeddata = async () => {
-                // Process one frame while still paused. This both warms up the
-                // MediaPipe model and paints the first real frame to the canvas.
-                await pose.send({ image: videoElement });
+                // Feed a few frames while paused so MediaPipe's landmark
+                // smoothing converges onto the NEW person. This flushes the
+                // temporal state left over from the previous video — the real
+                // source of the phantom rep.
+                for (let i = 0; i < 5; i++) {
+                    if (myRun !== runId) return;   // a newer upload superseded us
+                    await sendFrame(myRun);
+                }
 
-                // First frame is ready - hide the spinner, reveal the canvas.
+                if (myRun !== runId) return;
+
+                // Landmarks are locked onto the new person and a correct frame
+                // is already painted — safe to reveal and start counting.
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('results').style.display = 'grid';
+                document.getElementById('results').style.display = '';
+                isCounting = true;
 
-                // Only now that a frame is visible do we start the clock.
                 videoElement.play();
-                processVideo();
+                processVideo(myRun);
             };
         });
 
         // Continuously send frames to MediaPipe while the video plays
-        async function processVideo() {
+        async function processVideo(myRun) {
+            if (myRun !== runId) return;   // stale loop from an old video — stop
             if (!videoElement.paused && !videoElement.ended) {
-                await pose.send({image: videoElement});
-                requestAnimationFrame(processVideo);
+                await sendFrame(myRun);
+                if (myRun === runId) {
+                    requestAnimationFrame(() => processVideo(myRun));
+                }
             }
         }
     </script>
