@@ -332,17 +332,23 @@
         const canvasCtx = canvasElement.getContext('2d');
         const repCountDisplay = document.getElementById('repCount');
 
+        // Offscreen buffer: we own exactly which pixels MediaPipe sees.
+        const frameBuffer = document.createElement('canvas');
+        const frameCtx = frameBuffer.getContext('2d');
+
         let reps = 0;
-        let state = "up"; // The rep-counting state machine from your Python file
+        let state = null;      // null until a real standing pose is seen
         let isCounting = false;
         let runId = 0;
-        
-        const frameRuns = [];   // FIFO: which run each queued frame belongs to
+        let pose = null;       // rebuilt per video
 
         async function sendFrame(myRun) {
-            frameRuns.push(myRun);
-            await pose.send({ image: videoElement });
+            if (myRun !== runId) return;
+            if (videoElement.readyState < 2) return;   // HAVE_CURRENT_DATA — no frame yet
+            frameCtx.drawImage(videoElement, 0, 0, frameBuffer.width, frameBuffer.height);
+            await pose.send({ image: frameBuffer });
         }
+
         // Translation of your Python np.arctan2 math
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -353,35 +359,32 @@
             return angle;
         }
 
-        // --- 2. MEDIAPIPE INITIALIZATION ---
-        const pose = new Pose({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-        }});
-
-        pose.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
+        // --- 2. MEDIAPIPE INITIALIZATION (one graph per video) ---
+        function createPose(myRun) {
+            const p = new Pose({locateFile: (file) =>
+                `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+            p.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            // Closure over myRun: results from a superseded graph can never paint.
+            p.onResults((results) => {
+                if (myRun !== runId) return;
+                onPoseResults(results);
+            });
+            return p;
+        }
 
         // --- 3. THE FRAME RENDERING LOOP (Replaces OpenCV) ---
-        pose.onResults((results) => {
-            const frameRun = frameRuns.shift();
-            // Stale frame from a superseded video: its pixels and landmarks belong to
-            // the old person and the old dimensions. Never paint it.
-            if (frameRun !== runId) return;
-
-            // Belt-and-braces: never stretch a frame that doesn't match the bitmap.
-            if (results.image.width  !== canvasElement.width ||
-                results.image.height !== canvasElement.height) return;
-            
+        function onPoseResults(results) {
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Draw the current video frame onto the canvas
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // Draw the frame we captured ourselves — never MediaPipe's internal surface
+            canvasCtx.drawImage(frameBuffer, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.poseLandmarks) {
                 // Draw the skeleton
@@ -395,11 +398,11 @@
 
                 if (hip && knee && ankle) {
                     const angle = calculateAngle(hip, knee, ankle);
-                    
+
                     // Basic Python State Machine Port
                     if (isCounting) {
                         if (angle > 160) {
-                        state = "up";
+                            state = "up";
                         }
                         if (angle < 110 && state === "up") {
                             state = "down";
@@ -415,7 +418,7 @@
                 }
             }
             canvasCtx.restore();
-        });
+        }
 
         // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
         document.getElementById('uploadForm').addEventListener('submit', async function(event) {
@@ -428,9 +431,13 @@
             // New run: invalidate any loop still running from a previous video
             const myRun = ++runId;
 
+            // Tear down the old graph. This is what actually wipes the smoothing
+            // filter and the tracker's lock on the previous person.
+            if (pose) { pose.close(); pose = null; }
+
             // Reset all per-video state
             reps = 0;
-            state = "up";
+            state = null;
             isCounting = false;          // stay disarmed through the transition
             repCountDisplay.innerText = reps;
 
@@ -448,24 +455,24 @@
             videoElement.muted = true;
 
             videoElement.onloadedmetadata = () => {
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
+                if (myRun !== runId) return;
+                canvasElement.width  = frameBuffer.width  = videoElement.videoWidth;
+                canvasElement.height = frameBuffer.height = videoElement.videoHeight;
             };
 
             videoElement.onloadeddata = async () => {
-                // Feed a few frames while paused so MediaPipe's landmark
-                // smoothing converges onto the NEW person. This flushes the
-                // temporal state left over from the previous video — the real
-                // source of the phantom rep.
-                for (let i = 0; i < 5; i++) {
-                    if (myRun !== runId) return;   // a newer upload superseded us
-                    await sendFrame(myRun);
-                }
-
                 if (myRun !== runId) return;
 
-                // Landmarks are locked onto the new person and a correct frame
-                // is already painted — safe to reveal and start counting.
+                pose = createPose(myRun);
+                await pose.initialize();          // load WASM before we reveal anything
+                if (myRun !== runId) return;
+
+                // Fresh graph has no temporal state, so this is only about painting
+                // a correct first frame. Two is plenty.
+                await sendFrame(myRun);
+                await sendFrame(myRun);
+                if (myRun !== runId) return;
+
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('results').style.display = '';
                 isCounting = true;
