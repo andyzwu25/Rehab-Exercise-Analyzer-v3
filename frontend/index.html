@@ -291,8 +291,8 @@
 
     <div class="container">
         <h1>Squat Exercise Analyzer</h1>
-        <p class="subtitle">Upload a video to analyze squat biomechanics, depth, and form.</p>
-
+        <p class="subtitle">Upload a video to analyze squat biomechanics, depth, and form. Make sure your entire body is visible from head to foot. 
+            For the most accurate results, record in side-view.</p>
         <div class="upload-section">
             <form id="uploadForm">
                 <input type="file" id="videoInput" accept="video/mp4, video/mov" required>
@@ -401,7 +401,7 @@
                         minKnee = kneeAngle; bottomT = t;
                         trunkAtBottom = trunk; shinAtBottom = shin;
                     }
-                    if (hip.y + 5 > knee.y) reachedParallel = true;   // hip crease below knee = true parallel
+                    if (hip.y > knee.y) reachedParallel = true;   // hip crease below knee = true parallel
                     if (kneeAngle > TOP) {                         // rep complete on return to standing
                         reps.push({
                             depth: minKnee,
@@ -508,26 +508,26 @@
 
             // OBSERVATIONS
             const obs = [];
-            if (parallelCt === reps.length)
+            if (parallelCt === reps.length) // If hip depth exceeds knee depth
                 obs.push(['success', `Consistent depth — every rep reached parallel (hip level with or below the knee).`]);
             else if (parallelCt > 0)
                 obs.push(['warning', `Reached parallel on ${parallelCt} of ${reps.length} reps — the rest stopped a little high.`]);
             else
                 obs.push(['warning', `Reps stayed above parallel (avg bottom ${Math.round(avgDepth)}°) — shallow so far.`]);
 
-            if (peakExt >= 165)
+            if (peakExt >= 165) // If patient fully extends at the top of the squat
                 obs.push(['success', `Full standing extension between reps (${Math.round(peakExt)}°).`]);
             else
                 obs.push(['warning', `Not fully straightening at the top (peak ${Math.round(peakExt)}°) — staying slightly bent between reps.`]);
 
-            if (avgDescent >= 1.0)
+            if (avgDescent >= 1.0) // If the descent time to squat depth > 1 second
                 obs.push(['success', `Controlled lowering — about ${avgDescent.toFixed(1)}s to descend each rep.`]);
             else
                 obs.push(['warning', `Quick descent — only ${avgDescent.toFixed(1)}s down; dropping rather than lowering under control.`]);
 
             // ASSESSMENT (the "why")
             const assess = [];
-            if (avgGap > 22)
+            if (avgGap > 22) // Trunk angle - Shin angle
                 assess.push(`Your torso folds forward while the shins stay fairly vertical at the bottom (trunk–shin gap ~${Math.round(avgGap)}°). This most often points to <b>limited ankle mobility</b> — the knee can't travel forward enough, so the chest drops to compensate. A hip-dominant pattern can look the same.`);
             else if (avgGap < -10)
                 assess.push(`Knees travel well forward with an upright torso — a knee-dominant pattern. Fine for most people, but worth watching if you get pain at the front of the knee.`);
