@@ -262,6 +262,13 @@
             border: 1px solid #ffe4e6;
         }
 
+        .report-section { margin-top: 22px; }
+        .report-section h4 { margin: 0 0 8px; font-size: 1.05rem; color:#0f172a; font-weight:700; }
+        .report-list { margin: 0; padding-left: 20px; color:#475569; }
+        .report-list li { margin-bottom: 8px; }
+        .assess-line { margin: 10px 0 0; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; font-weight:400; }
+        .report-note { margin-top: 20px; font-size: 0.8rem; color:#94a3b8; font-style: italic; }
+
         @media (min-width: 768px) {
             .analysis-workspace {
                 display: grid;
@@ -319,6 +326,7 @@
                         <span class="metric-label">Current Reps:</span>
                         <span class="metric-value" id="repCount">0</span>
                     </div>
+                    <div id="ptReport"></div>
                 </div>
             </div>
 
@@ -337,7 +345,6 @@
         const frameCtx = frameBuffer.getContext('2d');
 
         let reps = 0;
-        let state = null;      // null until a real standing pose is seen
         let isCounting = false;
         let runId = 0;
         let pose = null;       // rebuilt per video
@@ -358,6 +365,64 @@
             }
             return angle;
         }
+
+        // Angle of segment a→b from true vertical, in degrees (image coords: y grows downward).
+        function angleFromVertical(a, b) {
+            const dx = b.x - a.x, dy = b.y - a.y;
+            return Math.abs(Math.atan2(dx, -dy) * 180 / Math.PI);
+        }
+
+        const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+
+        // Captures the SHAPE of each rep as scalar features. All thresholds tunable.
+        const squatCapture = (() => {
+            const DESCEND = 150, TOP = 158;     // enter a rep on the way down; complete near standing
+            let inRep = false;
+            let minKnee, trunkAtBottom, shinAtBottom, reachedParallel, startT, bottomT;
+            let sessionPeakExt = 0;             // straightest knee at standing → top-extension proxy
+            const reps = [];
+
+            function update(lm, t) {
+                const hip = lm[24], knee = lm[26], ankle = lm[28], shoulder = lm[12];
+                if (!hip || !knee || !ankle || !shoulder) return reps.length;
+
+                const kneeAngle = calculateAngle(hip, knee, ankle);
+                const trunk = angleFromVertical(hip, shoulder);   // 0 = upright torso
+                const shin  = angleFromVertical(ankle, knee);     // 0 = vertical shin
+
+                if (kneeAngle > sessionPeakExt) sessionPeakExt = kneeAngle;
+
+                if (!inRep && kneeAngle < DESCEND) {              // rep begins
+                    inRep = true;
+                    minKnee = kneeAngle; trunkAtBottom = trunk; shinAtBottom = shin;
+                    reachedParallel = false; startT = bottomT = t;
+                } else if (inRep) {
+                    if (kneeAngle < minKnee) {                    // new bottom → snapshot trunk & shin HERE
+                        minKnee = kneeAngle; bottomT = t;
+                        trunkAtBottom = trunk; shinAtBottom = shin;
+                    }
+                    if (hip.y + 5 > knee.y) reachedParallel = true;   // hip crease below knee = true parallel
+                    if (kneeAngle > TOP) {                         // rep complete on return to standing
+                        reps.push({
+                            depth: minKnee,
+                            reachedParallel,
+                            trunkLean: trunkAtBottom,
+                            trunkShinGap: trunkAtBottom - shinAtBottom,   // the root-cause signal
+                            descent: Math.max(0, bottomT - startT)
+                        });
+                        inRep = false;
+                    }
+                }
+                return reps.length;
+            }
+
+            return {
+                update,
+                reset: () => { inRep = false; reps.length = 0; sessionPeakExt = 0; },
+                getReps: () => reps.slice(),
+                getPeakExtension: () => sessionPeakExt
+            };
+        })();
 
         // --- 2. MEDIAPIPE INITIALIZATION (one graph per video) ---
         function createPose(myRun) {
@@ -391,33 +456,123 @@
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
                 drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#3b82f6', lineWidth: 2, radius: 3});
 
-                // Extract landmarks (Indexes: 24=Right Hip, 26=Right Knee, 28=Right Ankle)
-                const hip = results.poseLandmarks[24];
+                if (isCounting) {
+                    const count = squatCapture.update(results.poseLandmarks, videoElement.currentTime);
+                    if (count !== reps) { reps = count; repCountDisplay.innerText = reps; }
+                }
+
+                // Live on-canvas angle readout (real-time feedback is itself an adherence win)
                 const knee = results.poseLandmarks[26];
-                const ankle = results.poseLandmarks[28];
-
-                if (hip && knee && ankle) {
-                    const angle = calculateAngle(hip, knee, ankle);
-
-                    // Basic Python State Machine Port
-                    if (isCounting) {
-                        if (angle > 160) {
-                            state = "up";
-                        }
-                        if (angle < 110 && state === "up") {
-                            state = "down";
-                            reps += 1;
-                            repCountDisplay.innerText = reps;
-                        }
+                if (knee) {
+                    const hip = results.poseLandmarks[24], ankle = results.poseLandmarks[28];
+                    if (hip && ankle) {
+                        const angle = calculateAngle(hip, knee, ankle);
+                        canvasCtx.font = "24px Arial";
+                        canvasCtx.fillStyle = "white";
+                        canvasCtx.fillText(Math.round(angle) + "°",
+                            knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
                     }
-
-                    // Render angle text dynamically on the canvas near the knee
-                    canvasCtx.font = "24px Arial";
-                    canvasCtx.fillStyle = "white";
-                    canvasCtx.fillText(Math.round(angle) + "°", knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
                 }
             }
             canvasCtx.restore();
+        }
+
+        function finishSession() {
+            document.getElementById('ptReport').innerHTML = buildReport();
+        }
+
+        function buildReport() {
+            const reps = squatCapture.getReps();
+            if (!reps.length) {
+                return `<div class="feedback-message feedback-warning">⚠️ No full squats detected.
+                        Film side-on with your whole body in frame, and stand fully upright between reps.</div>`;
+            }
+
+            const depths     = reps.map(r => r.depth);
+            const avgDepth   = mean(depths);
+            const bestDepth  = Math.min(...depths);
+            const parallelCt = reps.filter(r => r.reachedParallel).length;
+            const avgGap     = mean(reps.map(r => r.trunkShinGap));
+            const avgDescent = mean(reps.map(r => r.descent));
+            const peakExt    = squatCapture.getPeakExtension();
+
+            const half = Math.floor(reps.length / 2);
+            const fatigueDrop = half >= 1
+                ? mean(depths.slice(reps.length - half)) - mean(depths.slice(0, half))  // +ve = shallower late
+                : 0;
+
+            // BASELINE
+            const baseline = `You completed <b>${reps.length}</b> ${reps.length === 1 ? 'rep' : 'reps'},
+                averaging <b>${Math.round(avgDepth)}°</b> of knee bend at the bottom
+                (deepest ${Math.round(bestDepth)}°). ${parallelCt}/${reps.length} reached parallel.`;
+
+            // OBSERVATIONS
+            const obs = [];
+            if (parallelCt === reps.length)
+                obs.push(['success', `Consistent depth — every rep reached parallel (hip level with or below the knee).`]);
+            else if (parallelCt > 0)
+                obs.push(['warning', `Reached parallel on ${parallelCt} of ${reps.length} reps — the rest stopped a little high.`]);
+            else
+                obs.push(['warning', `Reps stayed above parallel (avg bottom ${Math.round(avgDepth)}°) — shallow so far.`]);
+
+            if (peakExt >= 165)
+                obs.push(['success', `Full standing extension between reps (${Math.round(peakExt)}°).`]);
+            else
+                obs.push(['warning', `Not fully straightening at the top (peak ${Math.round(peakExt)}°) — staying slightly bent between reps.`]);
+
+            if (avgDescent >= 1.0)
+                obs.push(['success', `Controlled lowering — about ${avgDescent.toFixed(1)}s to descend each rep.`]);
+            else
+                obs.push(['warning', `Quick descent — only ${avgDescent.toFixed(1)}s down; dropping rather than lowering under control.`]);
+
+            // ASSESSMENT (the "why")
+            const assess = [];
+            if (avgGap > 22)
+                assess.push(`Your torso folds forward while the shins stay fairly vertical at the bottom (trunk–shin gap ~${Math.round(avgGap)}°). This most often points to <b>limited ankle mobility</b> — the knee can't travel forward enough, so the chest drops to compensate. A hip-dominant pattern can look the same.`);
+            else if (avgGap < -10)
+                assess.push(`Knees travel well forward with an upright torso — a knee-dominant pattern. Fine for most people, but worth watching if you get pain at the front of the knee.`);
+            else
+                assess.push(`Trunk and shin move in balance — no obvious ankle or hip compensation from this angle.`);
+
+            if (fatigueDrop > 8)
+                assess.push(`Depth shrank about ${Math.round(fatigueDrop)}° across the set — form is breaking down under fatigue toward the end.`);
+
+            // PLAN (top 1–2 only)
+            const plan = [];
+            if (avgGap > 22)
+                plan.push(`Work ankle mobility (calf stretches, knee-to-wall drill) and try a small heel lift — a folded towel under the heels — so the knees can travel forward and the chest can stay tall.`);
+            if (plan.length < 2 && parallelCt < reps.length && avgGap <= 22)
+                plan.push(`Sit deeper — lower onto a box or bench set just below knee height and tap it each rep for a consistent depth target.`);
+            if (plan.length < 2 && avgDescent < 1.0)
+                plan.push(`Slow the lowering — count "three down, one up" so the muscle controls the movement, not gravity.`);
+            if (plan.length < 2 && fatigueDrop > 8)
+                plan.push(`Stop the set once depth starts shrinking — a few clean reps beat many sloppy ones.`);
+            if (plan.length < 2 && peakExt < 165)
+                plan.push(`Finish each rep standing all the way tall before starting the next.`);
+            if (!plan.length)
+                plan.push(`Nothing major to change — keep this exact form and add a rep or two next session.`);
+
+            const cues = [
+                'Feet shoulder-width, toes turned slightly out.',
+                'Push the hips back like sitting into a chair.',
+                'Chest tall, weight through the mid-foot and heels.',
+                'Lower to about parallel, then drive up through the floor.'
+            ];
+
+            const msgs = a => a.map(([t, m]) => `<div class="feedback-message feedback-${t}" style="margin-top:10px;">${m}</div>`).join('');
+            const lis  = a => a.map(x => `<li>${x}</li>`).join('');
+
+            return `
+                <div class="metric-box" style="display:block;">
+                    <span class="metric-label">📋 Baseline</span>
+                    <p style="margin:8px 0 0; color:#334155; font-weight:400;">${baseline}</p>
+                </div>
+                <div class="report-section"><h4>🟦 Clinical Cues</h4><ul class="report-list">${lis(cues)}</ul></div>
+                <div class="report-section"><h4>👀 What I Observed</h4>${msgs(obs)}</div>
+                <div class="report-section"><h4>🩺 Assessment</h4>${assess.map(a => `<p class="assess-line">${a}</p>`).join('')}</div>
+                <div class="report-section"><h4>🛠️ Your Plan — Focus On</h4><ul class="report-list">${lis(plan)}</ul></div>
+                <p class="report-note">Movement feedback only, not a medical diagnosis. A side view can't assess knee cave
+                or left/right symmetry — add a front-facing clip for those.</p>`;
         }
 
         // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
@@ -437,7 +592,9 @@
 
             // Reset all per-video state
             reps = 0;
-            state = null;
+            squatCapture.reset();
+            const rep = document.getElementById('ptReport');
+            if (rep) rep.innerHTML = '';
             isCounting = false;          // stay disarmed through the transition
             repCountDisplay.innerText = reps;
 
@@ -476,6 +633,12 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('results').style.display = '';
                 isCounting = true;
+
+                videoElement.onended = () => {
+                    if (myRun !== runId) return;
+                    isCounting = false;
+                    finishSession();
+                };
 
                 videoElement.play();
                 processVideo(myRun);
