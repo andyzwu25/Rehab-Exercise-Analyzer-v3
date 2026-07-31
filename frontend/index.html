@@ -374,6 +374,46 @@
 
         const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
 
+        // Chooses the camera-facing side per frame from MediaPipe visibility scores.
+        // EMA + hysteresis keep the choice stable so it can't flip in the middle of a rep.
+        const sidePicker = (() => {
+            const IDX = {
+                left:  { shoulder: 11, hip: 23, knee: 25, ankle: 27 },
+                right: { shoulder: 12, hip: 24, knee: 26, ankle: 28 }
+            };
+            const ALPHA = 0.2;      // visibility smoothing (higher = snappier)
+            const MARGIN = 0.15;    // other side must beat current by this to switch (anti-flicker)
+            let emaL = null, emaR = null, locked = null;
+
+            const vis = (lm, s) => {
+                const j = IDX[s];
+                return ((lm[j.shoulder]?.visibility ?? 0) + (lm[j.hip]?.visibility ?? 0) +
+                        (lm[j.knee]?.visibility ?? 0) + (lm[j.ankle]?.visibility ?? 0)) / 4;
+            };
+
+            function pick(lm) {
+                const vL = vis(lm, 'left'), vR = vis(lm, 'right');
+                emaL = emaL === null ? vL : ALPHA * vL + (1 - ALPHA) * emaL;
+                emaR = emaR === null ? vR : ALPHA * vR + (1 - ALPHA) * emaR;
+
+                if (locked === null)                                   locked = emaR >= emaL ? 'right' : 'left';
+                else if (locked === 'right' && emaL > emaR + MARGIN)   locked = 'left';
+                else if (locked === 'left'  && emaR > emaL + MARGIN)   locked = 'right';
+
+                const j = IDX[locked];
+                return {
+                    side: locked,
+                    conf: locked === 'right' ? vR : vL,   // instantaneous confidence of the chosen side
+                    shoulder: lm[j.shoulder],
+                    hip:      lm[j.hip],
+                    knee:     lm[j.knee],
+                    ankle:    lm[j.ankle]
+                };
+            }
+
+            return { pick, reset: () => { emaL = emaR = null; locked = null; } };
+        })();
+
         // Captures the SHAPE of each rep as scalar features. All thresholds tunable.
         const squatCapture = (() => {
             const DESCEND = 150, TOP = 158;     // enter a rep on the way down; complete near standing
@@ -382,9 +422,10 @@
             let sessionPeakExt = 0;             // straightest knee at standing → top-extension proxy
             const reps = [];
 
-            function update(lm, t) {
-                const hip = lm[24], knee = lm[26], ankle = lm[28], shoulder = lm[12];
+            function update(joints, t) {
+                const { hip, knee, ankle, shoulder, conf } = joints;
                 if (!hip || !knee || !ankle || !shoulder) return reps.length;
+                if (conf < 0.5) return reps.length;
 
                 const kneeAngle = calculateAngle(hip, knee, ankle);
                 const trunk = angleFromVertical(hip, shoulder);   // 0 = upright torso
@@ -456,22 +497,21 @@
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
                 drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#3b82f6', lineWidth: 2, radius: 3});
 
+                const joints = sidePicker.pick(results.poseLandmarks);   // pick the visible side ONCE
+
                 if (isCounting) {
-                    const count = squatCapture.update(results.poseLandmarks, videoElement.currentTime);
+                    const count = squatCapture.update(joints, videoElement.currentTime);
                     if (count !== reps) { reps = count; repCountDisplay.innerText = reps; }
                 }
 
-                // Live on-canvas angle readout (real-time feedback is itself an adherence win)
-                const knee = results.poseLandmarks[26];
-                if (knee) {
-                    const hip = results.poseLandmarks[24], ankle = results.poseLandmarks[28];
-                    if (hip && ankle) {
-                        const angle = calculateAngle(hip, knee, ankle);
-                        canvasCtx.font = "24px Arial";
-                        canvasCtx.fillStyle = "white";
-                        canvasCtx.fillText(Math.round(angle) + "°",
-                            knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
-                    }
+                // Live on-canvas angle readout, on the camera-facing knee
+                const { hip, knee, ankle, conf } = joints;
+                if (conf >= 0.5 && hip && knee && ankle) {
+                    const angle = calculateAngle(hip, knee, ankle);
+                    canvasCtx.font = "24px Arial";
+                    canvasCtx.fillStyle = "white";
+                    canvasCtx.fillText(Math.round(angle) + "°",
+                        knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
                 }
             }
             canvasCtx.restore();
@@ -593,6 +633,7 @@
             // Reset all per-video state
             reps = 0;
             squatCapture.reset();
+            sidePicker.reset();
             const rep = document.getElementById('ptReport');
             if (rep) rep.innerHTML = '';
             isCounting = false;          // stay disarmed through the transition
