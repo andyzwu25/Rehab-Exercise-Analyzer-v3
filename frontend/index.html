@@ -268,6 +268,14 @@
         .report-list li { margin-bottom: 8px; }
         .assess-line { margin: 10px 0 0; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; font-weight:400; }
         .report-note { margin-top: 20px; font-size: 0.8rem; color:#94a3b8; font-style: italic; }
+        
+        .setup-panel { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:16px 20px; margin-top:16px; box-shadow:0 10px 25px -5px rgba(0,0,0,0.05); }
+        .setup-panel summary { cursor:pointer; font-weight:600; color:#334155; }
+        .setup-body { margin-top:14px; display:flex; flex-direction:column; gap:12px; }
+        .setup-row { display:flex; align-items:center; gap:10px; color:#475569; font-size:0.95rem; }
+        .setup-input { padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; color:#334155; }
+        .setup-disclaimer { margin:4px 0 0; font-size:0.8rem; color:#94a3b8; }
+        .accomm-note { margin-top:12px; font-size:0.85rem; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px 14px; }
 
         @media (min-width: 768px) {
             .analysis-workspace {
@@ -300,6 +308,28 @@
                 <button type="submit" class="upload-btn">Analyze Movement</button>
             </form>
         </div>
+
+        <details class="setup-panel">
+            <summary>⚙️ My situation (optional) — set a personal goal</summary>
+            <div class="setup-body">
+                <label class="setup-row">
+                    <input type="checkbox" id="useDepthGoal">
+                    Set a personal knee-bend (flexion) goal
+                </label>
+                <div class="setup-row">
+                    <input type="range" id="depthGoal" min="45" max="135" step="5" value="90" disabled>
+                    <span id="depthGoalVal">90°</span> of knee bend at the bottom
+                </div>
+                <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend.</p>
+
+                <input type="text" id="depthNote" class="setup-input" placeholder="Reason (optional) — e.g. knee pain past 90°">
+                <label class="setup-row">
+                    <input type="checkbox" id="expectLean">
+                    Forward lean is expected for me (long femurs, stiff ankle, etc.)
+                </label>
+                <p class="setup-disclaimer">These change how your session is <em>scored</em>, never what's measured — your real numbers always show. A goal set here is your own; if it's because of pain or an injury, confirm it with your physical therapist rather than relying on the app to decide it's safe.</p>
+            </div>
+        </details>
 
         <div id="loading">
             <div class="spinner"></div>
@@ -348,6 +378,23 @@
         let isCounting = false;
         let runId = 0;
         let pose = null;       // rebuilt per video
+        
+        // Patient-declared goals/accommodations — the seed of the future `prescription` object.
+        // This NEVER changes what's measured; it only changes what the measurement is judged against.
+        const profile = {
+            depthGoal: null,      // target bottom knee angle (deg); null = standard parallel test
+            depthGoalNote: '',    // documented reason, surfaced in the report
+            expectLean: false     // true = forward lean is expected, don't flag as a mobility issue
+        };
+
+        const useDepthGoalInput = document.getElementById('useDepthGoal');
+        const depthGoalInput    = document.getElementById('depthGoal');
+        const depthGoalVal      = document.getElementById('depthGoalVal');
+        const depthNoteInput    = document.getElementById('depthNote');
+        const expectLeanInput   = document.getElementById('expectLean');
+
+        useDepthGoalInput.addEventListener('change', () => { depthGoalInput.disabled = !useDepthGoalInput.checked; });
+        depthGoalInput.addEventListener('input', () => { depthGoalVal.textContent = depthGoalInput.value + '°'; });
 
         async function sendFrame(myRun) {
             if (myRun !== runId) return;
@@ -528,48 +575,88 @@
                         Film side-on with your whole body in frame, and stand fully upright between reps.</div>`;
             }
 
-            const depths     = reps.map(r => r.depth);
-            const avgDepth   = mean(depths);
-            const bestDepth  = Math.min(...depths);
+            // Knee flexion = 180 − interior joint angle. 0° = straight leg, higher = deeper bend.
+            // Clinical ROM convention, and it matches how the patient reads the slider.
+            const FLEX      = r => 180 - r.depth;                 // peak flexion reached this rep
+            const flexes    = reps.map(FLEX);
+            const avgFlex   = mean(flexes);
+            const bestFlex  = Math.max(...flexes);                // deepest bend of the set
             const parallelCt = reps.filter(r => r.reachedParallel).length;
             const avgGap     = mean(reps.map(r => r.trunkShinGap));
             const avgDescent = mean(reps.map(r => r.descent));
-            const peakExt    = squatCapture.getPeakExtension();
+            const topFlex    = 180 - squatCapture.getPeakExtension();  // bend remaining at the top (0 = full lockout)
 
             const half = Math.floor(reps.length / 2);
             const fatigueDrop = half >= 1
-                ? mean(depths.slice(reps.length - half)) - mean(depths.slice(0, half))  // +ve = shallower late
+                ? mean(flexes.slice(0, half)) - mean(flexes.slice(reps.length - half))  // +ve = shallower late
                 : 0;
 
-            // BASELINE
+            // BASELINE — reported in flexion, the SAME unit the goal is judged in.
             const baseline = `You completed <b>${reps.length}</b> ${reps.length === 1 ? 'rep' : 'reps'},
-                averaging <b>${Math.round(avgDepth)}°</b> of knee bend at the bottom
-                (deepest ${Math.round(bestDepth)}°). ${parallelCt}/${reps.length} reached parallel.`;
+                reaching an average of <b>${Math.round(avgFlex)}°</b> of knee bend at the bottom
+                (deepest ${Math.round(bestFlex)}°). ${parallelCt}/${reps.length} reached parallel depth
+                (hips to knee level or below).`;
+
+            // Documented accommodations — shows the *scoring* was adjusted, not the data.
+            const accommParts = [];
+            if (profile.depthGoal != null)
+                accommParts.push(`knee-bend goal ${profile.depthGoal}°${profile.depthGoalNote ? ` (${profile.depthGoalNote})` : ''}`);
+            if (profile.expectLean) accommParts.push('forward lean expected');
+            const accommHtml = accommParts.length
+                ? `<div class="accomm-note">⚙️ Evaluated against your settings: ${accommParts.join('; ')}. Your measured numbers above are unchanged — only the goals they're judged against.</div>`
+                : '';
 
             // OBSERVATIONS
             const obs = [];
-            if (parallelCt === reps.length) // If hip depth exceeds knee depth
-                obs.push(['success', `Consistent depth — every rep reached parallel (hip level with or below the knee).`]);
+
+            // Depth is measured identically (knee flexion) in BOTH branches — only the target differs.
+            if (profile.depthGoal != null) {
+                const G = profile.depthGoal, TOL = 8;
+                const hitGoal  = reps.filter(r => FLEX(r) >= G - TOL).length;   // reached the flexion target
+                const wellPast = reps.filter(r => FLEX(r) >= G + 20).length;    // notably deeper than goal
+                if (hitGoal === reps.length)
+                    obs.push(['success', `Hit your ${G}° knee-bend goal on every rep (measured avg ${Math.round(avgFlex)}°).`]);
+                else if (hitGoal > 0)
+                    obs.push(['warning', `Reached your ${G}° goal on ${hitGoal}/${reps.length} reps (measured avg ${Math.round(avgFlex)}°) — the rest stopped a little short.`]);
+                else
+                    obs.push(['warning', `Didn't reach your ${G}° goal (measured avg ${Math.round(avgFlex)}°) — not quite hitting your target yet.`]);
+                if (wellPast > 0)
+                    obs.push(['warning', `${wellPast} rep${wellPast > 1 ? 's' : ''} bent well past your ${G}° mark — if deeper is the range that bothers your knee, ease off there.`]);
+            } else {
+                if (avgFlex >= 100)
+                    obs.push(['success', `Good depth — averaging ${Math.round(avgFlex)}° of knee bend (a deep squat).`]);
+                else if (avgFlex >= 70)
+                    obs.push(['success', `Functional depth — averaging ${Math.round(avgFlex)}° of knee bend (about a right angle).`]);
+                else
+                    obs.push(['warning', `Partial depth — averaging ${Math.round(avgFlex)}° of knee bend; limited range so far.`]);
+            }
+
+            // Parallel is a SEPARATE spatial fact (hip vs knee height), not the flexion yardstick.
+            if (parallelCt === reps.length)
+                obs.push(['success', `Hips reached parallel (thigh flat) on every rep.`]);
             else if (parallelCt > 0)
-                obs.push(['warning', `Reached parallel on ${parallelCt} of ${reps.length} reps — the rest stopped a little high.`]);
+                obs.push(['warning', `Hips reached parallel on ${parallelCt}/${reps.length} reps.`]);
             else
-                obs.push(['warning', `Reps stayed above parallel (avg bottom ${Math.round(avgDepth)}°) — shallow so far.`]);
+                obs.push(['warning', `Hips stayed above parallel — the thigh didn't reach flat on any rep.`]);
 
-            if (peakExt >= 165) // If patient fully extends at the top of the squat
-                obs.push(['success', `Full standing extension between reps (${Math.round(peakExt)}°).`]);
+            if (topFlex <= 15)
+                obs.push(['success', `Standing to near-full extension between reps${topFlex <= 3 ? ' (fully locked out)' : ` (~${Math.round(topFlex)}° of bend remaining)`}.`]);
             else
-                obs.push(['warning', `Not fully straightening at the top (peak ${Math.round(peakExt)}°) — staying slightly bent between reps.`]);
+                obs.push(['warning', `Not fully straightening at the top — about ${Math.round(topFlex)}° of bend remaining between reps.`]);
 
-            if (avgDescent >= 1.0) // If the descent time to squat depth > 1 second
+            if (avgDescent >= 1.0)
                 obs.push(['success', `Controlled lowering — about ${avgDescent.toFixed(1)}s to descend each rep.`]);
             else
                 obs.push(['warning', `Quick descent — only ${avgDescent.toFixed(1)}s down; dropping rather than lowering under control.`]);
 
             // ASSESSMENT (the "why")
             const assess = [];
-            if (avgGap > 22) // Trunk angle - Shin angle
-                assess.push(`Your torso folds forward while the shins stay fairly vertical at the bottom (trunk–shin gap ~${Math.round(avgGap)}°). This most often points to <b>limited ankle mobility</b> — the knee can't travel forward enough, so the chest drops to compensate. A hip-dominant pattern can look the same.`);
-            else if (avgGap < -10)
+            if (avgGap > 22) {
+                if (profile.expectLean)   // was profile.expectation — that key doesn't exist, so this never fired
+                    assess.push(`Forward lean present at the bottom (trunk–shin gap ~${Math.round(avgGap)}°). You've noted this is expected for you, so it's not flagged as a mobility problem — just keep it consistent and pain-free.`);
+                else
+                    assess.push(`Your torso folds forward while the shins stay fairly vertical at the bottom (trunk–shin gap ~${Math.round(avgGap)}°). This most often points to <b>limited ankle mobility</b> — the knee can't travel forward enough, so the chest drops to compensate. A hip-dominant pattern can look the same.`);
+            } else if (avgGap < -10)
                 assess.push(`Knees travel well forward with an upright torso — a knee-dominant pattern. Fine for most people, but worth watching if you get pain at the front of the knee.`);
             else
                 assess.push(`Trunk and shin move in balance — no obvious ankle or hip compensation from this angle.`);
@@ -579,15 +666,20 @@
 
             // PLAN (top 1–2 only)
             const plan = [];
-            if (avgGap > 22)
+            if (avgGap > 22 && !profile.expectLean)
                 plan.push(`Work ankle mobility (calf stretches, knee-to-wall drill) and try a small heel lift — a folded towel under the heels — so the knees can travel forward and the chest can stay tall.`);
-            if (plan.length < 2 && parallelCt < reps.length && avgGap <= 22)
-                plan.push(`Sit deeper — lower onto a box or bench set just below knee height and tap it each rep for a consistent depth target.`);
+            // No goal set: only nudge deeper when the bend is genuinely partial.
+            if (plan.length < 2 && profile.depthGoal == null && avgFlex < 70 && avgGap <= 22)
+                plan.push(`Sit deeper — lower onto a box or bench at the height you're aiming for and tap it each rep for a consistent depth target.`);
+            // Goal set but not consistently reached.
+            if (plan.length < 2 && profile.depthGoal != null &&
+                reps.filter(r => FLEX(r) >= profile.depthGoal - 8).length < reps.length)
+                plan.push(`Aim to reach your ${profile.depthGoal}° knee-bend target on every rep — a box or chair at that height gives you something to tap for consistency.`);
             if (plan.length < 2 && avgDescent < 1.0)
                 plan.push(`Slow the lowering — count "three down, one up" so the muscle controls the movement, not gravity.`);
             if (plan.length < 2 && fatigueDrop > 8)
                 plan.push(`Stop the set once depth starts shrinking — a few clean reps beat many sloppy ones.`);
-            if (plan.length < 2 && peakExt < 165)
+            if (plan.length < 2 && topFlex > 15)
                 plan.push(`Finish each rep standing all the way tall before starting the next.`);
             if (!plan.length)
                 plan.push(`Nothing major to change — keep this exact form and add a rep or two next session.`);
@@ -596,7 +688,7 @@
                 'Feet shoulder-width, toes turned slightly out.',
                 'Push the hips back like sitting into a chair.',
                 'Chest tall, weight through the mid-foot and heels.',
-                'Lower to about parallel, then drive up through the floor.'
+                'Lower under control, then drive up through the floor.'
             ];
 
             const msgs = a => a.map(([t, m]) => `<div class="feedback-message feedback-${t}" style="margin-top:10px;">${m}</div>`).join('');
@@ -607,12 +699,14 @@
                     <span class="metric-label">📋 Baseline</span>
                     <p style="margin:8px 0 0; color:#334155; font-weight:400;">${baseline}</p>
                 </div>
+                ${accommHtml}
                 <div class="report-section"><h4>🟦 Clinical Cues</h4><ul class="report-list">${lis(cues)}</ul></div>
                 <div class="report-section"><h4>👀 What I Observed</h4>${msgs(obs)}</div>
                 <div class="report-section"><h4>🩺 Assessment</h4>${assess.map(a => `<p class="assess-line">${a}</p>`).join('')}</div>
                 <div class="report-section"><h4>🛠️ Your Plan — Focus On</h4><ul class="report-list">${lis(plan)}</ul></div>
-                <p class="report-note">Movement feedback only, not a medical diagnosis. A side view can't assess knee cave
-                or left/right symmetry — add a front-facing clip for those.</p>`;
+                <p class="report-note">Movement feedback only, not a medical diagnosis. Knee-bend is joint flexion (affected by how
+                far the knee travels forward), which is different from how low the hips drop — the parallel line above tracks that
+                separately. A side view also can't assess knee cave or left/right symmetry.</p>`;
         }
 
         // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
@@ -622,6 +716,10 @@
             const fileInput = document.getElementById('videoInput');
             const file = fileInput.files[0];
             if (!file) return;
+            
+            profile.depthGoal     = useDepthGoalInput.checked ? Number(depthGoalInput.value) : null;
+            profile.depthGoalNote = depthNoteInput.value.trim();
+            profile.expectLean    = expectLeanInput.checked;
 
             // New run: invalidate any loop still running from a previous video
             const myRun = ++runId;
