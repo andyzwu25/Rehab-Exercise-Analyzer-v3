@@ -320,7 +320,7 @@
                     <input type="range" id="depthGoal" min="45" max="135" step="5" value="90" disabled>
                     <span id="depthGoalVal">90°</span> of knee bend at the bottom
                 </div>
-                <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend.</p>
+                <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend. This is your <em>knee-bend</em> target only; hip depth (how low your hips sit) is measured and reported separately.</p>
 
                 <input type="text" id="depthNote" class="setup-input" placeholder="Reason (optional) — e.g. knee pain past 90°">
                 <label class="setup-row">
@@ -419,8 +419,23 @@
             return Math.abs(Math.atan2(dx, -dy) * 180 / Math.PI);
         }
 
+        // Thigh (femur) angle vs the horizontal floor, from the side.
+        // +90 ≈ standing (thigh vertical), 0 = thigh flat (parallel), negative = hips below knee.
+        // This is HIP DEPTH — how low the hips drop — and it's independent of knee bend.
+        function thighToHorizontal(hip, knee) {
+            const dx = hip.x - knee.x;
+            const dy = knee.y - hip.y;   // image coords: >0 when the hip is ABOVE the knee
+            return Math.atan2(dy, Math.abs(dx)) * 180 / Math.PI;
+        }
+
         const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
 
+        // Phrase a thigh-to-floor angle relative to the parallel line.
+        const parallelPhrase = deg => {
+            const a = Math.round(Math.abs(deg));
+            if (deg <= 5 && deg >= -5) return 'right at parallel';
+            return deg > 0 ? `${a}° above parallel` : `${a}° below parallel`;
+        };
         // Chooses the camera-facing side per frame from MediaPipe visibility scores.
         // EMA + hysteresis keep the choice stable so it can't flip in the middle of a rep.
         const sidePicker = (() => {
@@ -465,7 +480,7 @@
         const squatCapture = (() => {
             const DESCEND = 150, TOP = 158;     // enter a rep on the way down; complete near standing
             let inRep = false;
-            let minKnee, trunkAtBottom, shinAtBottom, reachedParallel, startT, bottomT;
+            let minKnee, trunkAtBottom, shinAtBottom, minThigh, startT, bottomT;
             let sessionPeakExt = 0;             // straightest knee at standing → top-extension proxy
             const reps = [];
 
@@ -477,23 +492,24 @@
                 const kneeAngle = calculateAngle(hip, knee, ankle);
                 const trunk = angleFromVertical(hip, shoulder);   // 0 = upright torso
                 const shin  = angleFromVertical(ankle, knee);     // 0 = vertical shin
+                const thigh = thighToHorizontal(hip, knee);       // hip depth: thigh angle vs floor
 
                 if (kneeAngle > sessionPeakExt) sessionPeakExt = kneeAngle;
 
                 if (!inRep && kneeAngle < DESCEND) {              // rep begins
                     inRep = true;
                     minKnee = kneeAngle; trunkAtBottom = trunk; shinAtBottom = shin;
-                    reachedParallel = false; startT = bottomT = t;
+                    minThigh = thigh; startT = bottomT = t;
                 } else if (inRep) {
                     if (kneeAngle < minKnee) {                    // new bottom → snapshot trunk & shin HERE
                         minKnee = kneeAngle; bottomT = t;
                         trunkAtBottom = trunk; shinAtBottom = shin;
                     }
-                    if (hip.y > knee.y) reachedParallel = true;   // hip crease below knee = true parallel
+                    if (thigh < minThigh) minThigh = thigh;       // deepest hip position of the rep
                     if (kneeAngle > TOP) {                         // rep complete on return to standing
                         reps.push({
                             depth: minKnee,
-                            reachedParallel,
+                            hipDepth: minThigh,                    // how low the hips dropped (thigh vs floor)
                             trunkLean: trunkAtBottom,
                             trunkShinGap: trunkAtBottom - shinAtBottom,   // the root-cause signal
                             descent: Math.max(0, bottomT - startT)
@@ -577,14 +593,22 @@
 
             // Knee flexion = 180 − interior joint angle. 0° = straight leg, higher = deeper bend.
             // Clinical ROM convention, and it matches how the patient reads the slider.
-            const FLEX      = r => 180 - r.depth;                 // peak flexion reached this rep
+            const FLEX      = r => 180 - r.depth;
             const flexes    = reps.map(FLEX);
             const avgFlex   = mean(flexes);
-            const bestFlex  = Math.max(...flexes);                // deepest bend of the set
-            const parallelCt = reps.filter(r => r.reachedParallel).length;
+            const bestFlex  = Math.max(...flexes);
+
+            // HIP DEPTH — thigh angle vs the floor at the lowest point. Independent of knee bend.
+            // >0 = hips above parallel (shallower), 0 = at parallel, <0 = hips below knee (deeper).
+            const hipDepths    = reps.map(r => r.hipDepth);
+            const avgHipDepth  = mean(hipDepths);
+            const bestHipDepth = Math.min(...hipDepths);          // most negative = deepest hips
+            const PARALLEL_TOL = 5;                                // within 5° of flat counts as parallel
+            const parallelCt   = hipDepths.filter(h => h <= PARALLEL_TOL).length;
+
             const avgGap     = mean(reps.map(r => r.trunkShinGap));
             const avgDescent = mean(reps.map(r => r.descent));
-            const topFlex    = 180 - squatCapture.getPeakExtension();  // bend remaining at the top (0 = full lockout)
+            const topFlex    = 180 - squatCapture.getPeakExtension();
 
             const half = Math.floor(reps.length / 2);
             const fatigueDrop = half >= 1
@@ -592,10 +616,9 @@
                 : 0;
 
             // BASELINE — reported in flexion, the SAME unit the goal is judged in.
-            const baseline = `You completed <b>${reps.length}</b> ${reps.length === 1 ? 'rep' : 'reps'},
-                reaching an average of <b>${Math.round(avgFlex)}°</b> of knee bend at the bottom
-                (deepest ${Math.round(bestFlex)}°). ${parallelCt}/${reps.length} reached parallel depth
-                (hips to knee level or below).`;
+            const baseline = `You completed <b>${reps.length}</b> ${reps.length === 1 ? 'rep' : 'reps'}.
+                <br><b>Knee bend:</b> averaged ${Math.round(avgFlex)}° (deepest ${Math.round(bestFlex)}°) — how much the knee joint folds.
+                <br><b>Hip depth:</b> hips dropped to ${parallelPhrase(avgHipDepth)} on average (best ${parallelPhrase(bestHipDepth)}) — how low you actually sit. ${parallelCt}/${reps.length} reps reached parallel.`;
 
             // Documented accommodations — shows the *scoring* was adjusted, not the data.
             const accommParts = [];
@@ -631,13 +654,15 @@
                     obs.push(['warning', `Partial depth — averaging ${Math.round(avgFlex)}° of knee bend; limited range so far.`]);
             }
 
-            // Parallel is a SEPARATE spatial fact (hip vs knee height), not the flexion yardstick.
-            if (parallelCt === reps.length)
-                obs.push(['success', `Hips reached parallel (thigh flat) on every rep.`]);
-            else if (parallelCt > 0)
-                obs.push(['warning', `Hips reached parallel on ${parallelCt}/${reps.length} reps.`]);
+            // HIP DEPTH — how low the hips drop. Distinct from the knee-bend line above.
+            if (avgHipDepth <= -10)
+                obs.push(['success', `Deep hips — sitting ${parallelPhrase(avgHipDepth)} on average.`]);
+            else if (avgHipDepth <= PARALLEL_TOL)
+                obs.push(['success', `Hips reached parallel — thigh to knee level (${parallelCt}/${reps.length} reps).`]);
+            else if (avgHipDepth <= 20)
+                obs.push(['warning', `Hips stopped ${parallelPhrase(avgHipDepth)} on average — a little high of parallel.`]);
             else
-                obs.push(['warning', `Hips stayed above parallel — the thigh didn't reach flat on any rep.`]);
+                obs.push(['warning', `Hips stayed ${parallelPhrase(avgHipDepth)} — shallow; the thigh isn't dropping to flat.`]);
 
             if (topFlex <= 15)
                 obs.push(['success', `Standing to near-full extension between reps${topFlex <= 3 ? ' (fully locked out)' : ` (~${Math.round(topFlex)}° of bend remaining)`}.`]);
@@ -661,6 +686,10 @@
             else
                 assess.push(`Trunk and shin move in balance — no obvious ankle or hip compensation from this angle.`);
 
+            // KEY divergence: lots of knee bend but hips still high → knees travel forward, hips don't sit.
+            if (avgFlex >= 90 && avgHipDepth > 20)
+                assess.push(`Your knees bend plenty (avg ${Math.round(avgFlex)}°) but your hips stay high (${parallelPhrase(avgHipDepth)}) — the knees are travelling forward rather than the hips sitting down and back. The joint <i>looks</i> like a deep squat while the hips aren't actually dropping far. If depth is the goal, cue "hips back and down," not just "bend more."`);
+
             if (fatigueDrop > 8)
                 assess.push(`Depth shrank about ${Math.round(fatigueDrop)}° across the set — form is breaking down under fatigue toward the end.`);
 
@@ -671,6 +700,10 @@
             // No goal set: only nudge deeper when the bend is genuinely partial.
             if (plan.length < 2 && profile.depthGoal == null && avgFlex < 70 && avgGap <= 22)
                 plan.push(`Sit deeper — lower onto a box or bench at the height you're aiming for and tap it each rep for a consistent depth target.`);
+            // Knee bends fine but hips high → the sit-back cue, not a deeper-bend cue.
+            if (plan.length < 2 && profile.depthGoal == null && avgHipDepth > 20 && avgFlex >= 70)
+                plan.push(`Sit the hips down and back — aim to bring your thighs level with your knees. A box or chair at parallel height gives you something to tap for a consistent target.`);
+        
             // Goal set but not consistently reached.
             if (plan.length < 2 && profile.depthGoal != null &&
                 reps.filter(r => FLEX(r) >= profile.depthGoal - 8).length < reps.length)
@@ -704,9 +737,12 @@
                 <div class="report-section"><h4>👀 What I Observed</h4>${msgs(obs)}</div>
                 <div class="report-section"><h4>🩺 Assessment</h4>${assess.map(a => `<p class="assess-line">${a}</p>`).join('')}</div>
                 <div class="report-section"><h4>🛠️ Your Plan — Focus On</h4><ul class="report-list">${lis(plan)}</ul></div>
-                <p class="report-note">Movement feedback only, not a medical diagnosis. Knee-bend is joint flexion (affected by how
-                far the knee travels forward), which is different from how low the hips drop — the parallel line above tracks that
-                separately. A side view also can't assess knee cave or left/right symmetry.</p>`;
+                <p class="report-note">Movement feedback only, not a medical diagnosis. <b>Knee bend</b> is how much the knee
+                joint folds; <b>hip depth</b> is how low your hips actually sit, measured against the parallel line. They're
+                different — you can bend the knee a lot without the hips dropping far if the knees travel forward, which is why
+                both are shown. The goal slider adjusts the knee-bend target only, not hip depth. A side view also can't assess
+                knee cave or left/right symmetry.</p>`;
+            
         }
 
         // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
