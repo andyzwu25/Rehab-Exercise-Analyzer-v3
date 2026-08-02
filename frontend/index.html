@@ -321,6 +321,16 @@
                     <span id="depthGoalVal">90°</span> of knee bend at the bottom
                 </div>
                 <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend. This is your <em>knee-bend</em> target only; hip depth (how low your hips sit) is measured and reported separately.</p>
+                
+                <label class="setup-row">
+                    <input type="checkbox" id="useHipGoal">
+                    Set a personal hip-depth goal
+                </label>
+                <div class="setup-row">
+                    <input type="range" id="hipGoal" min="-10" max="40" step="5" value="15" disabled>
+                    hips reach <span id="hipGoalVal">15° above parallel</span>
+                </div>
+                <p class="setup-disclaimer" style="margin-top:0;">How low your hips must drop, measured against parallel (thighs flat). 0° = full parallel; higher = a shallower target; negative = below parallel. Note <em>lower is deeper here</em> — the opposite direction from the knee-bend slider above, because they measure different things.</p>
 
                 <input type="text" id="depthNote" class="setup-input" placeholder="Reason (optional) — e.g. knee pain past 90°">
                 <label class="setup-row">
@@ -384,6 +394,7 @@
         const profile = {
             depthGoal: null,      // target bottom knee angle (deg); null = standard parallel test
             depthGoalNote: '',    // documented reason, surfaced in the report
+            hipDepthGoal: null,   // thigh-to-floor target; LOWER = deeper. null = default bands
             expectLean: false     // true = forward lean is expected, don't flag as a mobility issue
         };
 
@@ -392,6 +403,16 @@
         const depthGoalVal      = document.getElementById('depthGoalVal');
         const depthNoteInput    = document.getElementById('depthNote');
         const expectLeanInput   = document.getElementById('expectLean');
+        const useHipGoalInput = document.getElementById('useHipGoal');
+        const hipGoalInput    = document.getElementById('hipGoal');
+        const hipGoalVal      = document.getElementById('hipGoalVal');
+
+        useHipGoalInput.addEventListener('change', () => { hipGoalInput.disabled = !useHipGoalInput.checked; });
+        hipGoalInput.addEventListener('input', () => {
+            const v = Number(hipGoalInput.value);
+            hipGoalVal.textContent = Math.abs(v) <= 5 ? 'right at parallel'
+                : v > 0 ? `${v}° above parallel` : `${Math.abs(v)}° below parallel`;
+        });
 
         useDepthGoalInput.addEventListener('change', () => { depthGoalInput.disabled = !useDepthGoalInput.checked; });
         depthGoalInput.addEventListener('input', () => { depthGoalVal.textContent = depthGoalInput.value + '°'; });
@@ -624,6 +645,11 @@
             const accommParts = [];
             if (profile.depthGoal != null)
                 accommParts.push(`knee-bend goal ${profile.depthGoal}°${profile.depthGoalNote ? ` (${profile.depthGoalNote})` : ''}`);
+            if (profile.hipDepthGoal != null) {
+                const hp = profile.hipDepthGoal;
+                const phrase = Math.abs(hp) <= 5 ? 'parallel' : hp > 0 ? `${hp}° above parallel` : `${Math.abs(hp)}° below parallel`;
+                accommParts.push(`hip-depth goal ${phrase}`);
+            }
             if (profile.expectLean) accommParts.push('forward lean expected');
             const accommHtml = accommParts.length
                 ? `<div class="accomm-note">⚙️ Evaluated against your settings: ${accommParts.join('; ')}. Your measured numbers above are unchanged — only the goals they're judged against.</div>`
@@ -654,15 +680,30 @@
                     obs.push(['warning', `Partial depth — averaging ${Math.round(avgFlex)}° of knee bend; limited range so far.`]);
             }
 
-            // HIP DEPTH — how low the hips drop. Distinct from the knee-bend line above.
-            if (avgHipDepth <= -10)
-                obs.push(['success', `Deep hips — sitting ${parallelPhrase(avgHipDepth)} on average.`]);
-            else if (avgHipDepth <= PARALLEL_TOL)
-                obs.push(['success', `Hips reached parallel — thigh to knee level (${parallelCt}/${reps.length} reps).`]);
-            else if (avgHipDepth <= 20)
-                obs.push(['warning', `Hips stopped ${parallelPhrase(avgHipDepth)} on average — a little high of parallel.`]);
-            else
-                obs.push(['warning', `Hips stayed ${parallelPhrase(avgHipDepth)} — shallow; the thigh isn't dropping to flat.`]);
+            // HIP DEPTH — judged against a personal goal if set; otherwise default bands.
+            if (profile.hipDepthGoal != null) {
+                const H = profile.hipDepthGoal, HTOL = 5;
+                const hitHip = hipDepths.filter(h => h <= H + HTOL).length;   // reached target (lower = deeper)
+                const deeper = hipDepths.filter(h => h <= H - 20).length;     // well past target
+                const goalPhrase = Math.abs(H) <= 5 ? 'parallel' : H > 0 ? `${H}° above parallel` : `${Math.abs(H)}° below parallel`;
+                if (hitHip === reps.length)
+                    obs.push(['success', `Hit your hip-depth goal (${goalPhrase}) on every rep — hips averaged ${parallelPhrase(avgHipDepth)}.`]);
+                else if (hitHip > 0)
+                    obs.push(['warning', `Reached your hip-depth goal on ${hitHip}/${reps.length} reps — hips averaged ${parallelPhrase(avgHipDepth)}.`]);
+                else
+                    obs.push(['warning', `Hips didn't reach your goal (${goalPhrase}) — averaged ${parallelPhrase(avgHipDepth)}.`]);
+                if (deeper > 0)
+                    obs.push(['warning', `${deeper} rep${deeper > 1 ? 's' : ''} dropped well below your target — ease off if that range aggravates anything.`]);
+            } else {
+                if (avgHipDepth <= -10)
+                    obs.push(['success', `Deep hips — sitting ${parallelPhrase(avgHipDepth)} on average.`]);
+                else if (avgHipDepth <= PARALLEL_TOL)
+                    obs.push(['success', `Hips reached parallel — thigh to knee level (${parallelCt}/${reps.length} reps).`]);
+                else if (avgHipDepth <= 20)
+                    obs.push(['warning', `Hips stopped ${parallelPhrase(avgHipDepth)} on average — a little high of parallel.`]);
+                else
+                    obs.push(['warning', `Hips stayed ${parallelPhrase(avgHipDepth)} — shallow; the thigh isn't dropping to flat.`]);
+            }
 
             if (topFlex <= 15)
                 obs.push(['success', `Standing to near-full extension between reps${topFlex <= 3 ? ' (fully locked out)' : ` (~${Math.round(topFlex)}° of bend remaining)`}.`]);
@@ -687,7 +728,7 @@
                 assess.push(`Trunk and shin move in balance — no obvious ankle or hip compensation from this angle.`);
 
             // KEY divergence: lots of knee bend but hips still high → knees travel forward, hips don't sit.
-            if (avgFlex >= 90 && avgHipDepth > 20)
+            if (profile.hipDepthGoal == null && avgFlex >= 90 && avgHipDepth > 20)
                 assess.push(`Your knees bend plenty (avg ${Math.round(avgFlex)}°) but your hips stay high (${parallelPhrase(avgHipDepth)}) — the knees are travelling forward rather than the hips sitting down and back. The joint <i>looks</i> like a deep squat while the hips aren't actually dropping far. If depth is the goal, cue "hips back and down," not just "bend more."`);
 
             if (fatigueDrop > 8)
@@ -701,13 +742,16 @@
             if (plan.length < 2 && profile.depthGoal == null && avgFlex < 70 && avgGap <= 22)
                 plan.push(`Sit deeper — lower onto a box or bench at the height you're aiming for and tap it each rep for a consistent depth target.`);
             // Knee bends fine but hips high → the sit-back cue, not a deeper-bend cue.
-            if (plan.length < 2 && profile.depthGoal == null && avgHipDepth > 20 && avgFlex >= 70)
+            if (plan.length < 2 && profile.depthGoal == null && profile.hipDepthGoal == null && avgHipDepth > 20 && avgFlex >= 70)
                 plan.push(`Sit the hips down and back — aim to bring your thighs level with your knees. A box or chair at parallel height gives you something to tap for a consistent target.`);
-        
+            
             // Goal set but not consistently reached.
             if (plan.length < 2 && profile.depthGoal != null &&
                 reps.filter(r => FLEX(r) >= profile.depthGoal - 8).length < reps.length)
                 plan.push(`Aim to reach your ${profile.depthGoal}° knee-bend target on every rep — a box or chair at that height gives you something to tap for consistency.`);
+            if (plan.length < 2 && profile.hipDepthGoal != null &&
+                hipDepths.filter(h => h <= profile.hipDepthGoal + 5).length < reps.length)
+                plan.push(`Aim to sit your hips down to your target on each rep — a box or chair at that height gives you something to tap for consistency.`);
             if (plan.length < 2 && avgDescent < 1.0)
                 plan.push(`Slow the lowering — count "three down, one up" so the muscle controls the movement, not gravity.`);
             if (plan.length < 2 && fatigueDrop > 8)
@@ -740,7 +784,7 @@
                 <p class="report-note">Movement feedback only, not a medical diagnosis. <b>Knee bend</b> is how much the knee
                 joint folds; <b>hip depth</b> is how low your hips actually sit, measured against the parallel line. They're
                 different — you can bend the knee a lot without the hips dropping far if the knees travel forward, which is why
-                both are shown. The goal slider adjusts the knee-bend target only, not hip depth. A side view also can't assess
+                both are shown. The two goal sliders set knee-bend and hip-depth targets independently. A side view also can't assess
                 knee cave or left/right symmetry.</p>`;
             
         }
@@ -756,6 +800,7 @@
             profile.depthGoal     = useDepthGoalInput.checked ? Number(depthGoalInput.value) : null;
             profile.depthGoalNote = depthNoteInput.value.trim();
             profile.expectLean    = expectLeanInput.checked;
+            profile.hipDepthGoal = useHipGoalInput.checked ? Number(hipGoalInput.value) : null;
 
             // New run: invalidate any loop still running from a previous video
             const myRun = ++runId;
