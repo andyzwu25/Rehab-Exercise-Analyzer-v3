@@ -2,6 +2,8 @@
 
 A browser-based physical therapy tool that analyzes a squat from an uploaded video and produces a PT-style diagnostic report — clinical cues, an assessment of what happened, and a short, prioritized correction plan. All processing runs locally in the browser; **video never leaves the device**.
 
+**🔗 [Live Demo](https://andyzwu25.github.io/Rehab-Exercise-Analyzer-v3/)** — upload a squat clip and try it yourself, no install needed.
+
 ## Why this exists
 
 Home-exercise adherence is one of the harder problems in rehab, and a big part of it is patients not knowing whether they're doing a movement correctly. This tool watches the movement, measures it honestly, and explains what it saw in plain language — the way a therapist would on a first visit — so a patient leaves with one or two concrete things to work on rather than a pass/fail score.
@@ -17,6 +19,12 @@ Home-exercise adherence is one of the harder problems in rehab, and a big part o
 - **Additional signals:** trunk-vs-shin lean (used to infer likely ankle-mobility vs hip-dominant patterns), descent tempo, top-of-rep extension, and depth drop-off across the set (fatigue).
 - **Personal goals / accommodations.** An optional "My situation" panel lets a patient set a personal knee-bend goal, a personal hip-depth goal, and flag that forward lean is expected for them. These change **how the session is scored, never what's measured** — the real measured numbers always appear in the report, so the diagnostic stays honest and progress stays trackable.
 - **Camera-side auto-detection.** Picks the camera-facing body side per frame from MediaPipe visibility scores, with smoothing and hysteresis so the choice doesn't flip mid-rep.
+
+## Screenshots
+
+| Live pose tracking | PT-style report |
+|---|---|
+| ![Skeleton overlay tracking a squat in progress](docs/screenshot-tracking.png) | ![Generated diagnostic report showing knee bend, hip depth, and correction plan](docs/screenshot-report.png) |
 
 ## Architecture
 
