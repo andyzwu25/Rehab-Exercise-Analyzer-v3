@@ -10,3 +10,7 @@ __pycache__/
 *.mov
 temp_*
 output_videos/
+
+# Unused folders kept locally
+backend/
+live_demos/
