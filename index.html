@@ -3,601 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rehab Exercise Platform</title>
-    
-    <!-- 1. ADDED MEDIAPIPE CDN LIBRARIES -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-
+    <title>Rehab Exercise Analyzer</title>
     <style>
-       /* Modern Design Tokens & Base Styles */
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
-            color: #1e293b; 
-            line-height: 1.6;
-            margin: 0;
-            padding-bottom: 60px;
-            min-height: 100vh;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1e293b; line-height: 1.6; margin: 0; min-height: 100vh; padding-bottom: 60px;
         }
-        
-        /* Premium Floating Navigation Bar */
-        .navbar { 
-            background: rgba(15, 23, 42, 0.95); 
-            backdrop-filter: blur(8px);
-            padding: 16px 40px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            color: white; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+        .navbar {
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); padding: 16px 40px;
+            display: flex; justify-content: space-between; align-items: center; color: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
-        .navbar h2 { 
-            margin: 0; 
-            font-size: 22px; 
-            font-weight: 700;
-            letter-spacing: -0.5px; 
+        .navbar h2 {
+            margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
             background: linear-gradient(45deg, #3b82f6, #60a5fa);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .nav-links a { 
-            color: #94a3b8; 
-            text-decoration: none; 
-            margin-left: 24px; 
-            font-weight: 500; 
-            font-size: 15px;
-            transition: color 0.2s ease;
+        .nav-links a { color: #94a3b8; text-decoration: none; margin-left: 24px; font-weight: 500; font-size: 15px; transition: color 0.2s ease; }
+        .nav-links a:hover { color: #f8fafc; }
+        .container { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+        h1 { color: #0f172a; font-size: 2.4rem; font-weight: 800; letter-spacing: -0.75px; margin-bottom: 8px; }
+        .subtitle { color: #64748b; font-size: 1.15rem; margin-top: 0; margin-bottom: 40px; max-width: 640px; }
+        .exercise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
+        .exercise-card {
+            background: #fff; border-radius: 16px; padding: 28px; text-decoration: none; color: inherit;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease; display: block;
         }
-        .nav-links a:hover { 
-            color: #f8fafc; 
+        .exercise-card.available:hover { transform: translateY(-4px); box-shadow: 0 20px 30px -8px rgba(59,130,246,0.15); border-color: #3b82f6; }
+        .exercise-card.soon { opacity: 0.65; cursor: default; }
+        .card-icon { font-size: 2.2rem; margin-bottom: 12px; }
+        .card-title { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+        .card-desc { font-size: 0.92rem; color: #64748b; margin: 0; }
+        .card-badge {
+            display: inline-block; margin-top: 14px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; padding: 4px 10px; border-radius: 20px;
         }
-
-        /* Main Workspace Container */
-        .container { 
-            max-width: 1100px; 
-            margin: 40px auto; 
-            padding: 0 20px;
-        }
-
-        /* Typography & Header styling */
-        h1 { 
-            color: #0f172a; 
-            font-size: 2.2rem;
-            font-weight: 800;
-            letter-spacing: -0.75px;
-            margin-bottom: 8px;
-        }
-        .subtitle {
-            color: #64748b;
-            font-size: 1.1rem;
-            margin-top: 0;
-            margin-bottom: 32px;
-        }
-
-        /* Interactive Upload Zone */
-        .upload-section { 
-            background: #ffffff; 
-            padding: 40px; 
-            border: 2px dashed #cbd5e1; 
-            border-radius: 16px; 
-            text-align: center; 
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s ease;
-        }
-        .upload-section:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.1);
-            transform: translateY(-2px);
-        }
-        
-        /* Modern Action Button */
-        .upload-btn { 
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); 
-            color: white; 
-            padding: 14px 28px; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer; 
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-            transition: all 0.2s ease;
-        }
-        .upload-btn:hover { 
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
-        }
-        .upload-btn:active {
-            transform: translateY(1px);
-        }
-
-        /* Custom File Input Styling */
-        input[type="file"] {
-            color: #64748b;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        input[type="file"]::-webkit-file-upload-button {
-            background: #f1f5f9;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 8px 16px;
-            color: #475569;
-            font-weight: 600;
-            cursor: pointer;
-            margin-right: 12px;
-            transition: background 0.2s;
-        }
-        input[type="file"]::-webkit-file-upload-button:hover {
-            background: #e2e8f0;
-        }
-        
-        /* Center-Aligned Flex Loader Layout */
-        #loading { 
-            display: none; 
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px 20px;
-            background: #ffffff;
-            border-radius: 16px;
-            margin-top: 24px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        }
-
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #f1f5f9; 
-            border-top: 4px solid #2563eb; 
-            border-radius: 50%;
-            animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            color: #1e293b;
-            font-size: 1.25em;
-            font-weight: 700;
-            letter-spacing: -0.25px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        .loading-subtext {
-            color: #64748b;
-            font-size: 0.95em;
-            margin-top: 8px;
-        }
-
-        /* Two-Column Desktop Grid Arrangement */
-        .analysis-workspace {
-            margin-top: 32px;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-
-        /* High-contrast Workspace Cards */
-        .workspace-column {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        }
-
-        .workspace-column h3 {
-            margin-top: 0;
-            margin-bottom: 20px;
-            color: #0f172a;
-            font-size: 1.3rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            border-bottom: 1px solid #f1f5f9;
-            padding-bottom: 12px;
-        }
-
-        /* 2. ADDED CANVAS STYLING */
-        canvas {
-            display: block;          /* kills the inline-baseline gap too */
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-            background: #0f172a;
-            width: 100%;
-            height: auto;            /* <-- scale by the attribute ratio, not a fixed 480px */
-        }
-
-        /* Clinical Diagnostics Feedback Elements */
-        .metric-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .metric-label {
-            font-weight: 600;
-            color: #475569;
-        }
-        .metric-value { 
-            font-size: 1.4em; 
-            font-weight: 800; 
-            color: #2563eb;
-        }
-        
-        .feedback-message {
-            border-radius: 12px;
-            padding: 16px;
-            font-weight: 600;
-            margin-top: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .feedback-success {
-            background: #f0fdf4;
-            color: #166534;
-            border: 1px solid #bbf7d0;
-        }
-        .feedback-warning {
-            background: #fff1f2;
-            color: #991b1b;
-            border: 1px solid #ffe4e6;
-        }
-
-        .report-section { margin-top: 22px; }
-        .report-section h4 { margin: 0 0 8px; font-size: 1.05rem; color:#0f172a; font-weight:700; }
-        .report-list { margin: 0; padding-left: 20px; color:#475569; }
-        .report-list li { margin-bottom: 8px; }
-        .assess-line { margin: 10px 0 0; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; font-weight:400; }
-        .report-note { margin-top: 20px; font-size: 0.8rem; color:#94a3b8; font-style: italic; }
-        
-        .setup-panel { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:16px 20px; margin-top:16px; box-shadow:0 10px 25px -5px rgba(0,0,0,0.05); }
-        .setup-panel summary { cursor:pointer; font-weight:600; color:#334155; }
-        .setup-body { margin-top:14px; display:flex; flex-direction:column; gap:12px; }
-        .setup-row { display:flex; align-items:center; gap:10px; color:#475569; font-size:0.95rem; }
-        .setup-input { padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; color:#334155; }
-        .setup-disclaimer { margin:4px 0 0; font-size:0.8rem; color:#94a3b8; }
-        .accomm-note { margin-top:12px; font-size:0.85rem; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px 14px; }
-
-        @media (min-width: 768px) {
-            .analysis-workspace {
-                display: grid;
-                grid-template-columns: 1.3fr 0.7fr; 
-                gap: 32px;
-                align-items: start; 
-            }
-        }
+        .badge-available { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .badge-soon { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
     </style>
 </head>
 <body>
-
     <nav class="navbar">
         <h2>Rehab Exercise Analyzer</h2>
         <div class="nav-links">
             <a href="index.html">Dashboard</a>
-            <a href="#">Patient Records</a>
+            <a href="#">About</a>
         </div>
     </nav>
 
     <div class="container">
-        <h1>Squat Exercise Analyzer</h1>
-        <p class="subtitle">Upload a video to analyze squat biomechanics, depth, and form. Make sure your entire body is visible from head to foot. 
-            For the most accurate results, record in side-view.</p>
-        <div class="upload-section">
-            <form id="uploadForm">
-                <input type="file" id="videoInput" accept="video/mp4, video/mov" required>
-                <br>
-                <button type="submit" class="upload-btn">Analyze Movement</button>
-            </form>
-        </div>
+        <h1>Movement Analyzers</h1>
+        <p class="subtitle">Upload a video of an exercise and get a PT-style diagnostic report — analyzed entirely in your browser. Your video never leaves your device.</p>
 
-        <details class="setup-panel">
-            <summary>⚙️ My situation (optional) — set a personal goal</summary>
-            <div class="setup-body">
-                <label class="setup-row">
-                    <input type="checkbox" id="useDepthGoal">
-                    Set a personal knee-bend (flexion) goal
-                </label>
-                <div class="setup-row">
-                    <input type="range" id="depthGoal" min="45" max="135" step="5" value="90" disabled>
-                    <span id="depthGoalVal">90°</span> of knee bend at the bottom
-                </div>
-                <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend. This is your <em>knee-bend</em> target only; hip depth (how low your hips sit) is measured and reported separately.</p>
-                
-                <label class="setup-row">
-                    <input type="checkbox" id="useHipGoal">
-                    Set a personal hip-depth goal
-                </label>
-                <div class="setup-row">
-                    <input type="range" id="hipGoal" min="-10" max="40" step="5" value="15" disabled>
-                    hips reach <span id="hipGoalVal">15° above parallel</span>
-                </div>
-                <p class="setup-disclaimer" style="margin-top:0;">How low your hips must drop, measured against parallel (thighs flat). 0° = full parallel; higher = a shallower target; negative = below parallel. Note <em>lower is deeper here</em> — the opposite direction from the knee-bend slider above, because they measure different things.</p>
+        <div class="exercise-grid">
+            <a href="squat.html" class="exercise-card available">
+                <div class="card-icon">🏋️</div>
+                <h3 class="card-title">Squat Analyzer</h3>
+                <p class="card-desc">Depth, hip drop, trunk lean, tempo, and fatigue — with personal depth goals.</p>
+                <span class="card-badge badge-available">Available</span>
+            </a>
 
-                <input type="text" id="depthNote" class="setup-input" placeholder="Reason (optional) — e.g. knee pain past 90°">
-                <label class="setup-row">
-                    <input type="checkbox" id="expectLean">
-                    Forward lean is expected for me (long femurs, stiff ankle, etc.)
-                </label>
-                <p class="setup-disclaimer">These change how your session is <em>scored</em>, never what's measured — your real numbers always show. A goal set here is your own; if it's because of pain or an injury, confirm it with your physical therapist rather than relying on the app to decide it's safe.</p>
-            </div>
-        </details>
-
-        <div id="loading">
-            <div class="spinner"></div>
-            <div class="loading-text">Initializing AI Model...</div>
-            <div class="loading-subtext">Loading MediaPipe directly into your browser.</div>
-        </div>
-
-        <div class="analysis-workspace" id="results" style="display: none;">
-            
-            <!-- 3. REPLACED <video> WITH A HIDDEN VIDEO AND VISIBLE CANVAS -->
-            <div class="workspace-column video-column">
-                <h3>Movement Playback</h3>
-                <!-- The raw video plays invisibly in the background -->
-                <video id="inputVideo" style="display: none;" playsinline></video>
-                <!-- The canvas is where we draw the video + the skeleton overlays -->
-                <canvas id="outputCanvas" width="640" height="480"></canvas>
-            </div>
-            
-            <div class="workspace-column report-column">
-                <h3>Diagnostic Report</h3>
-                <div id="reportText">
-                    <!-- Live metrics will inject here -->
-                    <div class="metric-box">
-                        <span class="metric-label">Current Reps:</span>
-                        <span class="metric-value" id="repCount">0</span>
-                    </div>
-                    <div id="ptReport"></div>
-                </div>
+            <div class="exercise-card soon">
+                <div class="card-icon">🦵</div>
+                <h3 class="card-title">Lunge Analyzer</h3>
+                <p class="card-desc">Front-knee tracking, step depth, and balance through the movement.</p>
+                <span class="card-badge badge-soon">Coming Soon</span>
             </div>
 
+            <div class="exercise-card soon">
+                <div class="card-icon">🐚</div>
+                <h3 class="card-title">Clamshell Analyzer</h3>
+                <p class="card-desc">Hip abduction range and pelvic stability for glute activation.</p>
+                <span class="card-badge badge-soon">Coming Soon</span>
+            </div>
+
+            <div class="exercise-card soon">
+                <div class="card-icon">💪</div>
+                <h3 class="card-title">Push-Up Analyzer</h3>
+                <p class="card-desc">Elbow range, body-line alignment, and descent control.</p>
+                <span class="card-badge badge-soon">Coming Soon</span>
+            </div>
+
+            <div class="exercise-card soon">
+                <div class="card-icon">🆙</div>
+                <h3 class="card-title">Pull-Up Analyzer</h3>
+                <p class="card-desc">Range of motion, chin clearance, and rep consistency.</p>
+                <span class="card-badge badge-soon">Coming Soon</span>
+            </div>
         </div>
     </div>
-
-    <script>
-        // --- 1. SETUP VARIABLES & GEOMETRY MATH ---
-        const videoElement = document.getElementById('inputVideo');
-        const canvasElement = document.getElementById('outputCanvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const repCountDisplay = document.getElementById('repCount');
-
-        // Offscreen buffer: we own exactly which pixels MediaPipe sees.
-        const frameBuffer = document.createElement('canvas');
-        const frameCtx = frameBuffer.getContext('2d');
-
-        let reps = 0;
-        let isCounting = false;
-        let runId = 0;
-        let pose = null;       // rebuilt per video
-
-        async function sendFrame(myRun) {
-            if (myRun !== runId) return;
-            if (videoElement.readyState < 2) return;   // HAVE_CURRENT_DATA — no frame yet
-            frameCtx.drawImage(videoElement, 0, 0, frameBuffer.width, frameBuffer.height);
-            await pose.send({ image: frameBuffer });
-        }
-
-        // Translation of your Python np.arctan2 math
-        function calculateAngle(a, b, c) {
-            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-            let angle = Math.abs((radians * 180.0) / Math.PI);
-            if (angle > 180.0) {
-                angle = 360.0 - angle;
-            }
-            return angle;
-        }
-
-        // Angle of segment a→b from true vertical, in degrees (image coords: y grows downward).
-        function angleFromVertical(a, b) {
-            const dx = b.x - a.x, dy = b.y - a.y;
-            return Math.abs(Math.atan2(dx, -dy) * 180 / Math.PI);
-        }
-
-        const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
-
-        // Chooses the camera-facing side per frame from MediaPipe visibility scores.
-        // EMA + hysteresis keep the choice stable so it can't flip in the middle of a rep.
-        const sidePicker = (() => {
-            const IDX = {
-                left:  { shoulder: 11, hip: 23, knee: 25, ankle: 27 },
-                right: { shoulder: 12, hip: 24, knee: 26, ankle: 28 }
-            };
-            const ALPHA = 0.2;      // visibility smoothing (higher = snappier)
-            const MARGIN = 0.15;    // other side must beat current by this to switch (anti-flicker)
-            let emaL = null, emaR = null, locked = null;
-
-            const vis = (lm, s) => {
-                const j = IDX[s];
-                return ((lm[j.shoulder]?.visibility ?? 0) + (lm[j.hip]?.visibility ?? 0) +
-                        (lm[j.knee]?.visibility ?? 0) + (lm[j.ankle]?.visibility ?? 0)) / 4;
-            };
-
-            function pick(lm) {
-                const vL = vis(lm, 'left'), vR = vis(lm, 'right');
-                emaL = emaL === null ? vL : ALPHA * vL + (1 - ALPHA) * emaL;
-                emaR = emaR === null ? vR : ALPHA * vR + (1 - ALPHA) * emaR;
-
-                if (locked === null)                                   locked = emaR >= emaL ? 'right' : 'left';
-                else if (locked === 'right' && emaL > emaR + MARGIN)   locked = 'left';
-                else if (locked === 'left'  && emaR > emaL + MARGIN)   locked = 'right';
-
-                const j = IDX[locked];
-                return {
-                    side: locked,
-                    conf: locked === 'right' ? vR : vL,   // instantaneous confidence of the chosen side
-                    shoulder: lm[j.shoulder],
-                    hip:      lm[j.hip],
-                    knee:     lm[j.knee],
-                    ankle:    lm[j.ankle]
-                };
-            }
-
-            return { pick, reset: () => { emaL = emaR = null; locked = null; } };
-        })();
-
-        // --- 2. MEDIAPIPE INITIALIZATION (one graph per video) ---
-        function createPose(myRun) {
-            const p = new Pose({locateFile: (file) =>
-                `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-            p.setOptions({
-                modelComplexity: 1,
-                smoothLandmarks: true,
-                enableSegmentation: false,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-            // Closure over myRun: results from a superseded graph can never paint.
-            p.onResults((results) => {
-                if (myRun !== runId) return;
-                onPoseResults(results);
-            });
-            return p;
-        }
-
-        // --- 3. THE FRAME RENDERING LOOP (Replaces OpenCV) ---
-        function onPoseResults(results) {
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            // Draw the frame we captured ourselves — never MediaPipe's internal surface
-            canvasCtx.drawImage(frameBuffer, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.poseLandmarks) {
-                // Draw the skeleton
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
-                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#3b82f6', lineWidth: 2, radius: 3});
-
-                const joints = sidePicker.pick(results.poseLandmarks);   // pick the visible side ONCE
-
-                if (isCounting) {
-                    const count = window.currentExercise.update(joints, videoElement.currentTime);
-                    if (count !== reps) { reps = count; repCountDisplay.innerText = reps; }
-                }
-
-                // Live on-canvas angle readout, on the camera-facing knee
-                const { hip, knee, ankle, conf } = joints;
-                if (conf >= 0.5 && hip && knee && ankle) {
-                    const angle = calculateAngle(hip, knee, ankle);
-                    canvasCtx.font = "24px Arial";
-                    canvasCtx.fillStyle = "white";
-                    canvasCtx.fillText(Math.round(180 - angle) + "°",
-                        knee.x * canvasElement.width + 15, knee.y * canvasElement.height);
-                }
-            }
-            canvasCtx.restore();
-        }
-
-        function finishSession() {
-            document.getElementById('ptReport').innerHTML = window.currentExercise.finish();
-        }
-
-        // --- 4. VIDEO UPLOAD & PROCESSING TRIGGER ---
-        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
-            event.preventDefault();
-
-            const fileInput = document.getElementById('videoInput');
-            const file = fileInput.files[0];
-            if (!file) return;
-
-            if (!window.currentExercise) {
-                alert('Exercise module failed to load. Check that squat.js is present');
-                return;
-            }
-
-            window.currentExercise.readProfile();
-            // New run: invalidate any loop still running from a previous video
-            const myRun = ++runId;
-
-            // Tear down the old graph. This is what actually wipes the smoothing
-            // filter and the tracker's lock on the previous person.
-            if (pose) { pose.close(); pose = null; }
-
-            // Reset all per-video state
-            reps = 0;
-            window.currentExercise.reset();
-            sidePicker.reset();
-            const rep = document.getElementById('ptReport');
-            if (rep) rep.innerHTML = '';
-            isCounting = false;          // stay disarmed through the transition
-            repCountDisplay.innerText = reps;
-
-            // Blank the canvas and drop the old blob before anything can repaint.
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            if (videoElement.src) URL.revokeObjectURL(videoElement.src);
-
-            // Keep the canvas hidden behind the spinner during the switch,
-            // so the previous video's last frame never flashes.
-            document.getElementById('loading').style.display = 'flex';
-            document.getElementById('results').style.display = 'none';
-
-            const videoURL = URL.createObjectURL(file);
-            videoElement.src = videoURL;
-            videoElement.muted = true;
-
-            videoElement.onloadedmetadata = () => {
-                if (myRun !== runId) return;
-                canvasElement.width  = frameBuffer.width  = videoElement.videoWidth;
-                canvasElement.height = frameBuffer.height = videoElement.videoHeight;
-            };
-
-            videoElement.onloadeddata = async () => {
-                if (myRun !== runId) return;
-
-                pose = createPose(myRun);
-                await pose.initialize();          // load WASM before we reveal anything
-                if (myRun !== runId) return;
-
-                // Fresh graph has no temporal state, so this is only about painting
-                // a correct first frame. Two is plenty.
-                await sendFrame(myRun);
-                await sendFrame(myRun);
-                if (myRun !== runId) return;
-
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('results').style.display = '';
-                isCounting = true;
-
-                videoElement.onended = () => {
-                    if (myRun !== runId) return;
-                    isCounting = false;
-                    finishSession();
-                };
-
-                videoElement.play();
-                processVideo(myRun);
-            };
-        });
-
-        // Continuously send frames to MediaPipe while the video plays
-        async function processVideo(myRun) {
-            if (myRun !== runId) return;   // stale loop from an old video — stop
-            if (!videoElement.paused && !videoElement.ended) {
-                await sendFrame(myRun);
-                if (myRun === runId) {
-                    requestAnimationFrame(() => processVideo(myRun));
-                }
-            }
-        }
-    </script>
-    <script src="squat.js"></script>
 </body>
 </html>

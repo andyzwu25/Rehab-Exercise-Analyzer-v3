@@ -22,24 +22,65 @@ const profile = {
     expectLean: false     // true = forward lean is expected, don't flag as a mobility issue
 };
 
-const useDepthGoalInput = document.getElementById('useDepthGoal');
-const depthGoalInput    = document.getElementById('depthGoal');
-const depthGoalVal      = document.getElementById('depthGoalVal');
-const depthNoteInput    = document.getElementById('depthNote');
-const expectLeanInput   = document.getElementById('expectLean');
-const useHipGoalInput = document.getElementById('useHipGoal');
-const hipGoalInput    = document.getElementById('hipGoal');
-const hipGoalVal      = document.getElementById('hipGoalVal');
+// This module's setup controls. Refs are filled in by renderSetup() once the
+// HTML is injected — declared here so readProfile() can read them later.
+let useDepthGoalInput, depthGoalInput, depthGoalVal, depthNoteInput, expectLeanInput,
+    useHipGoalInput, hipGoalInput, hipGoalVal;
 
-useHipGoalInput.addEventListener('change', () => { hipGoalInput.disabled = !useHipGoalInput.checked; });
-hipGoalInput.addEventListener('input', () => {
-    const v = Number(hipGoalInput.value);
-    hipGoalVal.textContent = Math.abs(v) <= 5 ? 'right at parallel'
-        : v > 0 ? `${v}° above parallel` : `${Math.abs(v)}° below parallel`;
-});
+// Injects squat-specific goal controls into the shell's empty #setupBody,
+// then wires their listeners. Called once at load.
+function renderSetup() {
+    const body = document.getElementById('setupBody');
+    if (!body) return;
 
-useDepthGoalInput.addEventListener('change', () => { depthGoalInput.disabled = !useDepthGoalInput.checked; });
-depthGoalInput.addEventListener('input', () => { depthGoalVal.textContent = depthGoalInput.value + '°'; });
+    body.innerHTML = `
+        <label class="setup-row">
+            <input type="checkbox" id="useDepthGoal">
+            Set a personal knee-bend (flexion) goal
+        </label>
+        <div class="setup-row">
+            <input type="range" id="depthGoal" min="45" max="135" step="5" value="90" disabled>
+            <span id="depthGoalVal">90°</span> of knee bend at the bottom
+        </div>
+        <p class="setup-disclaimer" style="margin-top:0;">0° is a straight leg, 90° is a right angle at the knee — higher means a deeper bend. This is your <em>knee-bend</em> target only; hip depth (how low your hips sit) is measured and reported separately.</p>
+
+        <label class="setup-row">
+            <input type="checkbox" id="useHipGoal">
+            Set a personal hip-depth goal
+        </label>
+        <div class="setup-row">
+            <input type="range" id="hipGoal" min="-10" max="40" step="5" value="15" disabled>
+            hips reach <span id="hipGoalVal">15° above parallel</span>
+        </div>
+        <p class="setup-disclaimer" style="margin-top:0;">How low your hips must drop, measured against parallel (thighs flat). 0° = full parallel; higher = a shallower target; negative = below parallel. Note <em>lower is deeper here</em> — the opposite direction from the knee-bend slider above, because they measure different things.</p>
+
+        <input type="text" id="depthNote" class="setup-input" placeholder="Reason (optional) — e.g. knee pain past 90°">
+        <label class="setup-row">
+            <input type="checkbox" id="expectLean">
+            Forward lean is expected for me (long femurs, stiff ankle, etc.)
+        </label>
+        <p class="setup-disclaimer">These change how your session is <em>scored</em>, never what's measured — your real numbers always show. A goal set here is your own; if it's because of pain or an injury, confirm it with your physical therapist rather than relying on the app to decide it's safe.</p>`;
+
+    // Now that the HTML exists, grab refs and wire listeners.
+    useDepthGoalInput = document.getElementById('useDepthGoal');
+    depthGoalInput    = document.getElementById('depthGoal');
+    depthGoalVal      = document.getElementById('depthGoalVal');
+    depthNoteInput    = document.getElementById('depthNote');
+    expectLeanInput   = document.getElementById('expectLean');
+    useHipGoalInput   = document.getElementById('useHipGoal');
+    hipGoalInput      = document.getElementById('hipGoal');
+    hipGoalVal        = document.getElementById('hipGoalVal');
+
+    useDepthGoalInput.addEventListener('change', () => { depthGoalInput.disabled = !useDepthGoalInput.checked; });
+    depthGoalInput.addEventListener('input', () => { depthGoalVal.textContent = depthGoalInput.value + '°'; });
+
+    useHipGoalInput.addEventListener('change', () => { hipGoalInput.disabled = !useHipGoalInput.checked; });
+    hipGoalInput.addEventListener('input', () => {
+        const v = Number(hipGoalInput.value);
+        hipGoalVal.textContent = Math.abs(v) <= 5 ? 'right at parallel'
+            : v > 0 ? `${v}° above parallel` : `${Math.abs(v)}° below parallel`;
+    });
+}
 
 // Captures the SHAPE of each rep as scalar features. All thresholds tunable.
 const squatCapture = (() => {
@@ -289,5 +330,8 @@ window.currentExercise = {
     update:      (joints, t) => squatCapture.update(joints, t),
     reset:       () => squatCapture.reset(),
     finish:      buildReport,
-    readProfile: readProfile
+    readProfile: readProfile,
+    renderSetup: renderSetup
 };
+
+window.currentExercise.renderSetup();
